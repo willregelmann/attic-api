@@ -2,7 +2,8 @@
   "version": 2,
   "functions": {
     "api/index.php": {
-      "runtime": "vercel-php@0.6.0"
+      "runtime": "vercel-php@0.5.0",
+      "excludeFiles": "storage/**"
     }
   },
   "routes": [
@@ -11,6 +12,11 @@
       "dest": "/api/index.php"
     }
   ],
+  "build": {
+    "env": {
+      "COMPOSER_CACHE_DIR": "/tmp/.composer"
+    }
+  },
   "env": {
     "APP_ENV": "production",
     "APP_DEBUG": "false",
