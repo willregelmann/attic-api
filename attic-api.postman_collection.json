@@ -1,0 +1,285 @@
+{
+  "info": {
+    "name": "Will's Attic API",
+    "description": "Collection management API with Google OAuth authentication",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "attic-api-v1"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://attic-pyhryhudn-will-regelmanns-projects.vercel.app",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Get Google OAuth URL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/google/url",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "google", "url"]
+            },
+            "description": "Get the Google OAuth URL for frontend redirect"
+          },
+          "response": []
+        },
+        {
+          "name": "Login with Google Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (responseCode.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.success && jsonData.token) {",
+                  "        pm.collectionVariables.set('authToken', jsonData.token);",
+                  "        console.log('Auth token saved:', jsonData.token.substring(0, 20) + '...');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"google_token\": \"GOOGLE_ACCESS_TOKEN_HERE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/google/token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "google", "token"]
+            },
+            "description": "Exchange Google access token for API token"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            },
+            "description": "Get authenticated user information"
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (responseCode.code === 200) {",
+                  "    pm.collectionVariables.set('authToken', '');",
+                  "    console.log('Auth token cleared');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "logout"]
+            },
+            "description": "Logout current session"
+          },
+          "response": []
+        },
+        {
+          "name": "Logout All Sessions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (responseCode.code === 200) {",
+                  "    pm.collectionVariables.set('authToken', '');",
+                  "    console.log('Auth token cleared');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout-all",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "logout-all"]
+            },
+            "description": "Logout from all devices"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Health & Info",
+      "item": [
+        {
+          "name": "API Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            },
+            "description": "Check API health status"
+          },
+          "response": []
+        },
+        {
+          "name": "API Documentation",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            },
+            "description": "Get API documentation and available endpoints"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Future Endpoints",
+      "item": [
+        {
+          "name": "Get Collections (Not Implemented)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/collections",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "collections"]
+            },
+            "description": "Future endpoint: Get all collections"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Items (Not Implemented)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/items",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "items"]
+            },
+            "description": "Future endpoint: Get user's items"
+          },
+          "response": []
+        },
+        {
+          "name": "Search Collectibles (Not Implemented)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/search?q=pokemon&category=trading-cards",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "pokemon"
+                },
+                {
+                  "key": "category",
+                  "value": "trading-cards"
+                }
+              ]
+            },
+            "description": "Future endpoint: Search collectibles"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
