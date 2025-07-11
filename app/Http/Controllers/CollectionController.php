@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Collection;
 use Illuminate\Http\Request;
 use App\Http\Resources\ApiResponse;
+use Illuminate\Support\Str;
 
 class CollectionController extends Controller
 {
@@ -13,20 +14,22 @@ class CollectionController extends Controller
      */
     public function index()
     {
-        $collections = Collection::all()->map(function ($collection) {
-            return [
-                'id' => $collection->id,
-                'name' => $collection->name,
-                'category' => $collection->category,
-                'completion' => 0, // TODO: Calculate completion based on user's items
-                'totalItems' => $collection->collectibles()->count(),
-                'ownedItems' => 0, // TODO: Calculate based on authenticated user's items
-                'recentActivity' => 'No recent activity', // TODO: Calculate recent activity
-                'year' => $collection->metadata['year'] ?? null,
-            ];
-        });
-
-        return ApiResponse::success($collections);
+        try {
+            // Test basic database connection first
+            $collections = Collection::all();
+            
+            return ApiResponse::success([
+                'collections' => $collections->toArray(),
+                'count' => $collections->count(),
+                'debug' => 'Successfully loaded collections from database'
+            ]);
+        } catch (\Exception $e) {
+            return ApiResponse::error(
+                'Database error: ' . $e->getMessage(),
+                500,
+                'DATABASE_ERROR'
+            );
+        }
     }
 
     /**

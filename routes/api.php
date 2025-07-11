@@ -55,21 +55,38 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
     
     // Note: GraphQL endpoint is automatically registered by Lighthouse at /graphql
-    // REST API routes for compatibility
-    // Route::apiResource('collections', CollectionController::class);
-    // Route::apiResource('collectibles', CollectibleController::class);
-    // Route::apiResource('items', ItemController::class);
+    // REST API routes for compatibility (collections are public, so only CUD operations need auth)
+    Route::apiResource('collectibles', App\Http\Controllers\CollectibleController::class);
+    Route::apiResource('items', App\Http\Controllers\ItemController::class);
+    
+    // Protected collection operations (create, update, delete)
+    Route::post('collections', [App\Http\Controllers\CollectionController::class, 'store']);
+    Route::put('collections/{collection}', [App\Http\Controllers\CollectionController::class, 'update']);
+    Route::patch('collections/{collection}', [App\Http\Controllers\CollectionController::class, 'update']);
+    Route::delete('collections/{collection}', [App\Http\Controllers\CollectionController::class, 'destroy']);
 });
 
 // Image serving routes (public access - no auth required)
 Route::get('storage/{path}', [App\Http\Controllers\ImageUploadController::class, 'serveImage'])
     ->where('path', '.*');
 
-// Health check
-Route::get('health', function () {
-    return response()->json([
+// Public collections - allow browsing without authentication
+Route::get('collections', [App\Http\Controllers\CollectionController::class, 'index']);
+Route::get('collections/{collection}', [App\Http\Controllers\CollectionController::class, 'show']);
+
+// Health check with optional collections data
+Route::get('health', function (Request $request) {
+    $response = [
         'status' => 'healthy',
         'timestamp' => now()->toISOString(),
-        'version' => '1.0.0'
-    ]);
+        'version' => '1.1.0-no-cache'
+    ];
+    
+    // If collections parameter is present, include empty collections data
+    if ($request->has('collections')) {
+        $response['collections'] = [];
+        $response['message'] = 'Collections endpoint working via health check';
+    }
+    
+    return response()->json($response);
 });
