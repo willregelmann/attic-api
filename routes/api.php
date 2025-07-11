@@ -74,6 +74,16 @@ Route::get('storage/{path}', [App\Http\Controllers\ImageUploadController::class,
 Route::get('collections', [App\Http\Controllers\CollectionController::class, 'index']);
 Route::get('collections/{collection}', [App\Http\Controllers\CollectionController::class, 'show']);
 
+// Simple test endpoint
+Route::get('test', function () {
+    return response()->json([
+        'status' => 'working',
+        'message' => 'Simple test endpoint is functional',
+        'php_version' => PHP_VERSION,
+        'laravel_version' => app()->version()
+    ]);
+});
+
 // Health check with optional collections data
 Route::get('health', function (Request $request) {
     $response = [
