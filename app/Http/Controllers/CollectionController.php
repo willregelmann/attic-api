@@ -15,20 +15,18 @@ class CollectionController extends Controller
     public function index()
     {
         try {
-            // Test basic database connection first
-            $collections = Collection::all();
-            
+            // Return static data first to test if controller loading works
             return ApiResponse::success([
-                'collections' => $collections->toArray(),
-                'count' => $collections->count(),
-                'debug' => 'Successfully loaded collections from database'
+                'collections' => [],
+                'count' => 0,
+                'debug' => 'Controller is working, returning empty collections for now',
+                'timestamp' => now()->toISOString()
             ]);
         } catch (\Exception $e) {
-            return ApiResponse::error(
-                'Database error: ' . $e->getMessage(),
-                500,
-                'DATABASE_ERROR'
-            );
+            return response()->json([
+                'error' => 'Controller error: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
         }
     }
 

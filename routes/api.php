@@ -75,6 +75,11 @@ Route::get('storage/{path}', [App\Http\Controllers\ImageUploadController::class,
 Route::get('collections', [App\Http\Controllers\CollectionController::class, 'index']);
 Route::get('collections/{collection}', [App\Http\Controllers\CollectionController::class, 'show']);
 
+// Ultra simple test endpoint
+Route::get('ping', function () {
+    return 'pong';
+});
+
 // Simple test endpoint
 Route::get('test', function () {
     return response()->json([
