@@ -27,7 +27,7 @@ return new class extends Migration
             
             $table->index('category');
             $table->index('slug');
-            $table->fullText(['name', 'slug']);
+            $table->index('name');
         });
     }
 

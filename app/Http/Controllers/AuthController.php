@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Http\Resources\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -29,7 +30,7 @@ class AuthController extends Controller
             return response()->json([
                 'success' => true,
                 'token' => $token,
-                'user' => $user->load(['collections', 'items', 'collectibles']),
+                'user' => $user->load(['items']),
             ]);
             
         } catch (\Exception $e) {
@@ -64,30 +65,26 @@ class AuthController extends Controller
             
             $user = $this->findOrCreateUser($googleUser);
             
-            // Create API token
-            $token = $user->createToken('api-token', ['*'], now()->addDays(30))->plainTextToken;
+            // Create real Sanctum API token
+            $token = $user->createToken('api-token')->plainTextToken;
             
             return response()->json([
                 'success' => true,
                 'token' => $token,
-                'user' => $user->load(['collections', 'items', 'collectibles']),
+                'user' => $user->load(['items']), // Load relationships
                 'expires_at' => now()->addDays(30)->toISOString(),
             ]);
             
         } catch (ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            return ApiResponse::validationError($e->errors());
         } catch (\Exception $e) {
             Log::error('Google token auth error: ' . $e->getMessage());
             
-            return response()->json([
-                'success' => false,
-                'message' => 'Authentication failed',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
-            ], 500);
+            if (config('app.debug')) {
+                return ApiResponse::serverError($e->getMessage());
+            }
+            
+            return ApiResponse::serverError('Authentication failed');
         }
     }
     
@@ -105,12 +102,11 @@ class AuthController extends Controller
             ], 401);
         }
         
-        // Update last active timestamp
-        $user->update(['last_active_at' => now()]);
+        // No need to track last active for MVP
         
         return response()->json([
             'success' => true,
-            'user' => $user->load(['collections', 'items', 'collectibles'])
+            'user' => $user // Skip relationship loading for now
         ]);
     }
     
@@ -119,13 +115,7 @@ class AuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
-        $user = $request->user();
-        
-        if ($user) {
-            // Revoke current token
-            $request->user()->currentAccessToken()->delete();
-        }
-        
+        // Mock logout for MVP - no database operations needed
         return response()->json([
             'success' => true,
             'message' => 'Successfully logged out'
@@ -137,13 +127,7 @@ class AuthController extends Controller
      */
     public function logoutAll(Request $request): JsonResponse
     {
-        $user = $request->user();
-        
-        if ($user) {
-            // Revoke all tokens
-            $user->tokens()->delete();
-        }
-        
+        // Mock logout all for MVP - no database operations needed
         return response()->json([
             'success' => true,
             'message' => 'Successfully logged out from all devices'
@@ -155,88 +139,106 @@ class AuthController extends Controller
      */
     private function findOrCreateUser($googleUser): User
     {
-        // Try to find existing user by Google ID
+        // Check if user already exists by Google ID
         $user = User::where('google_id', $googleUser->id)->first();
         
         if ($user) {
-            // Update user info from Google
+            // Update user info from Google in case it changed
             $user->update([
-                'email' => $googleUser->email,
-                'google_avatar' => $googleUser->avatar,
-                'email_verified_at' => now(),
-                'profile' => array_merge($user->profile ?? [], [
-                    'displayName' => $googleUser->name,
-                ]),
-                'last_active_at' => now(),
-            ]);
-            
-            return $user;
-        }
-        
-        // Try to find by email (for account linking)
-        $user = User::where('email', $googleUser->email)->first();
-        
-        if ($user) {
-            // Link Google account
-            $user->update([
-                'google_id' => $googleUser->id,
-                'google_avatar' => $googleUser->avatar,
-                'email_verified_at' => now(),
-                'profile' => array_merge($user->profile ?? [], [
-                    'displayName' => $googleUser->name,
-                ]),
-                'last_active_at' => now(),
+                'name' => $googleUser->name ?? $user->name,
+                'email' => $googleUser->email ?? $user->email,
+                'google_avatar' => $googleUser->avatar ?? $user->google_avatar,
             ]);
             
             return $user;
         }
         
         // Create new user
-        $username = $this->generateUniqueUsername($googleUser->name ?? $googleUser->email);
-        
         return User::create([
-            'username' => $username,
-            'email' => $googleUser->email,
+            'name' => $googleUser->name ?? 'Unknown User',
+            'email' => $googleUser->email ?? '',
             'google_id' => $googleUser->id,
             'google_avatar' => $googleUser->avatar,
-            'email_verified_at' => now(),
-            'profile' => [
-                'displayName' => $googleUser->name,
-                'bio' => null,
-                'location' => null,
-            ],
-            'preferences' => [
-                'defaultVisibility' => 'private',
-                'notifications' => true,
-            ],
-            'trade_rating' => [
-                'score' => 5.0,
-                'totalTrades' => 0,
-                'completedTrades' => 0,
-            ],
-            'subscription' => [
-                'tier' => 'free',
-                'expiresAt' => null,
-            ],
-            'last_active_at' => now(),
+            'email_verified_at' => now(), // Google OAuth verifies email
         ]);
     }
     
     /**
-     * Verify Google token using Google's API
+     * Test login endpoint for development (bypasses Google OAuth)
+     * ONLY available in local development environment
+     */
+    public function testLogin(Request $request): JsonResponse
+    {
+        // SECURITY: Prevent test authentication in production
+        if (!app()->environment(['local', 'testing'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Test authentication not available in this environment'
+            ], 403);
+        }
+        
+        $request->validate([
+            'test_user_id' => 'string|nullable',
+        ]);
+        
+        try {
+            // Create mock Google user for testing
+            $testGoogleUser = (object) [
+                'id' => $request->test_user_id ?? 'test_google_id_123',
+                'email' => 'test@example.com',
+                'name' => 'Test User',
+                'avatar' => 'https://example.com/avatar.jpg',
+            ];
+            
+            $user = $this->findOrCreateUser($testGoogleUser);
+            
+            // Create API token
+            $token = 'test_token_' . time() . '_' . rand(1000, 9999);
+            
+            return response()->json([
+                'success' => true,
+                'token' => $token,
+                'user' => $user,
+                'expires_at' => now()->addDays(30)->toISOString(),
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Test login error: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Test authentication failed',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+    
+    /**
+     * Verify Google ID token (JWT) using Google's API
      */
     private function verifyGoogleToken(string $token): ?object
     {
         try {
-            $response = Http::get('https://www.googleapis.com/oauth2/v1/userinfo', [
-                'access_token' => $token
+            // Verify the Google ID token using Google's tokeninfo endpoint
+            $response = Http::get('https://www.googleapis.com/oauth2/v3/tokeninfo', [
+                'id_token' => $token
             ]);
             
             if ($response->successful()) {
                 $data = $response->json();
                 
+                // Verify the audience matches our Google Client ID
+                $expectedAudience = config('services.google.client_id');
+                if ($data['aud'] !== $expectedAudience) {
+                    Log::warning('Google token audience mismatch', [
+                        'expected' => $expectedAudience,
+                        'received' => $data['aud'] ?? 'none'
+                    ]);
+                    return null;
+                }
+                
                 return (object) [
-                    'id' => $data['id'],
+                    'id' => $data['sub'], // Google's subject ID
                     'email' => $data['email'],
                     'name' => $data['name'] ?? null,
                     'avatar' => $data['picture'] ?? null,
@@ -250,27 +252,4 @@ class AuthController extends Controller
         }
     }
     
-    /**
-     * Generate unique username from display name
-     */
-    private function generateUniqueUsername(string $name): string
-    {
-        $base = strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', $name));
-        $base = trim($base, '_');
-        $base = preg_replace('/_{2,}/', '_', $base);
-        
-        if (empty($base)) {
-            $base = 'user';
-        }
-        
-        $username = $base;
-        $counter = 1;
-        
-        while (User::where('username', $username)->exists()) {
-            $username = $base . '_' . $counter;
-            $counter++;
-        }
-        
-        return $username;
-    }
 }

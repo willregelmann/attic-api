@@ -1,0 +1,270 @@
+"A datetime string with format `Y-m-d H:i:s`, e.g. `2018-05-23 13:43:32`."
+scalar DateTime @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
+
+"A date string with format `Y-m-d`, e.g. `2011-05-23`."
+scalar Date @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Date")
+
+# Using String for simplicity in MVP
+# scalar String
+
+"Indicates what fields are available at the top level of a query operation."
+type Query {
+    "Health check for GraphQL endpoint"
+    health: String!
+    
+    "Get all collections with completion stats for authenticated user"
+    collections: [Collection!]!
+
+    "Get a specific collection by ID"
+    collection(id: ID! @eq): Collection @find @guard
+
+    "Get all collectibles for a specific collection"
+    collectibles(collection_id: ID! @eq): [Collectible!]! @paginate @guard
+
+    "Search collectibles across all collections"
+    searchCollectibles(search: String! @where(operator: "like", key: "name")): [Collectible!]! @paginate @guard
+
+    "Get authenticated user's items"
+    myItems: [Item!]! @hasMany(relation: "items") @guard
+
+    "Get user's items for a specific collection"
+    myCollectionItems(collection_id: ID!): [Item!]! @guard
+
+    "Get the authenticated user"
+    me: User @auth @guard
+}
+
+"Mutations for creating, updating, and deleting data"
+type Mutation {
+    "Create a new collection"
+    createCollection(input: CreateCollectionInput! @spread): Collection @create @guard
+
+    "Update an existing collection"
+    updateCollection(id: ID!, input: UpdateCollectionInput! @spread): Collection @update @guard
+
+    "Delete a collection"
+    deleteCollection(id: ID!): Collection @delete @guard
+
+    "Create a new item in user's collection"
+    createItem(input: CreateItemInput! @spread): Item @create @guard @inject(context: "user.id", name: "user_id")
+
+    "Update an existing item"
+    updateItem(id: ID!, input: UpdateItemInput! @spread): Item @update @guard
+
+    "Delete an item from user's collection"
+    deleteItem(id: ID!): Item @delete @guard
+
+    "Toggle favorite status of an item"
+    toggleItemFavorite(id: ID!): Item @guard
+}
+
+"Input for creating a new collection"
+input CreateCollectionInput {
+    name: String!
+    category: String!
+    description: String
+    metadata: String
+    image_url: String
+}
+
+"Input for updating a collection"
+input UpdateCollectionInput {
+    name: String
+    category: String
+    description: String
+    metadata: String
+    image_url: String
+    status: String
+}
+
+"Input for creating a new item"
+input CreateItemInput {
+    collectible_id: ID
+    name: String!
+    personal_notes: String
+    user_images: [String!]
+    is_favorite: Boolean
+}
+
+"Input for updating an item"
+input UpdateItemInput {
+    collectible_id: ID
+    name: String
+    personal_notes: String
+    user_images: [String!]
+    is_favorite: Boolean
+}
+
+"Account of a person who uses this application."
+type User {
+    "Unique primary key."
+    id: ID!
+
+    "User's display name."
+    name: String!
+
+    "Unique email address."
+    email: String!
+
+    "User profile data as String"
+    profile: String
+
+    "User preferences as String"
+    preferences: String
+
+    "When the account was created."
+    created_at: DateTime!
+
+    "When the account was last updated."
+    updated_at: DateTime!
+
+    "User's items in their personal collection"
+    items: [Item!]! @hasMany
+}
+
+"A collection of collectibles (e.g., Pokemon Base Set, Star Wars Black Series)"
+type Collection {
+    "Unique primary key."
+    id: ID!
+
+    "Collection name."
+    name: String!
+
+    "Collection category (e.g., Trading Cards, Action Figures)"
+    category: String!
+
+    "Collection description"
+    description: String
+
+    "Collection metadata as String"
+    metadata: String
+
+    "Collection status"
+    status: String!
+
+    "Collection image URL"
+    image_url: String
+
+    "When the collection was created."
+    created_at: DateTime!
+
+    "When the collection was last updated."
+    updated_at: DateTime!
+
+    "Collectibles in this collection"
+    collectibles: [Collectible!]! @belongsToMany
+
+    "Completion percentage for authenticated user"
+    completion: Int! @field(resolver: "App\\GraphQL\\Queries\\CollectionCompletion")
+
+    "Total number of collectibles in this collection"
+    totalItems: Int! @count(relation: "collectibles")
+
+    "Number of items owned by authenticated user"
+    ownedItems: Int! @field(resolver: "App\\GraphQL\\Queries\\OwnedItemsCount")
+
+    "Recent activity description"
+    recentActivity: String! @field(resolver: "App\\GraphQL\\Queries\\RecentActivity")
+
+    "Year from metadata"
+    year: Int @field(resolver: "App\\GraphQL\\Queries\\CollectionYear")
+}
+
+"A specific collectible item that can be collected"
+type Collectible {
+    "Unique primary key."
+    id: ID!
+
+    "Collectible name."
+    name: String!
+
+    "Collectible slug for URLs"
+    slug: String!
+
+    "Category of the collectible"
+    category: String
+
+    "Base attributes as String"
+    base_attributes: String
+
+    "Image URLs as String array"
+    image_urls: String
+
+    "Digital metadata as String"
+    digital_metadata: String
+
+    "When the collectible was created."
+    created_at: DateTime!
+
+    "When the collectible was last updated."
+    updated_at: DateTime!
+
+    "Collections this collectible belongs to"
+    collections: [Collection!]! @belongsToMany
+
+    "User items for this collectible"
+    items: [Item!]! @hasMany
+
+    "Number for display (derived from base_attributes)"
+    number: String @field(resolver: "App\\GraphQL\\Queries\\CollectibleNumber")
+
+    "Primary image URL"
+    imageUrl: String @field(resolver: "App\\GraphQL\\Queries\\CollectibleImageUrl")
+
+    "Collection ID (primary collection)"
+    collectionId: ID @field(resolver: "App\\GraphQL\\Queries\\CollectibleCollectionId")
+
+    "Wishlist count (placeholder)"
+    wishlistCount: Int @field(resolver: "App\\GraphQL\\Queries\\WishlistCount")
+}
+
+"A user's owned instance of a collectible"
+type Item {
+    "Unique primary key."
+    id: ID!
+
+    "User who owns this item"
+    user_id: ID!
+
+    "Collectible this item represents (nullable for custom items)"
+    collectible_id: ID
+
+    "Custom name for the item"
+    name: String
+
+    "User's personal notes"
+    personal_notes: String
+
+    "User-uploaded images as String array"
+    user_images: String
+
+    "Whether this item is marked as favorite"
+    is_favorite: Boolean!
+
+    "When the item was created."
+    created_at: DateTime!
+
+    "When the item was last updated."
+    updated_at: DateTime!
+
+    "The user who owns this item"
+    user: User! @belongsTo
+
+    "The collectible this item represents"
+    collectible: Collectible @belongsTo
+
+    "Acquisition date (formatted from created_at)"
+    acquiredDate: Date @field(resolver: "App\\GraphQL\\Queries\\ItemAcquiredDate")
+
+    "Collection name (from collectible)"
+    collectionName: String @field(resolver: "App\\GraphQL\\Queries\\ItemCollectionName")
+
+    "Collection ID (from collectible)"
+    collectionId: ID @field(resolver: "App\\GraphQL\\Queries\\ItemCollectionId")
+
+    "Display category"
+    category: String! @field(resolver: "App\\GraphQL\\Queries\\ItemCategory")
+
+    "Tags for filtering (derived from collectible or custom)"
+    tags: [String!]! @field(resolver: "App\\GraphQL\\Queries\\ItemTags")
+}

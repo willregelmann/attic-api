@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: attic-api
+    container_name: attic-api
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+      - ./storage:/var/www/storage
+    networks:
+      - attic
+
+  webserver:
+    image: nginx:alpine
+    container_name: attic-webserver
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./:/var/www
+      - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+    depends_on:
+      - app
+    networks:
+      - attic
+
+  db:
+    image: mysql:8.0
+    container_name: attic-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: attic
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_PASSWORD: secret
+      MYSQL_USER: attic
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    ports:
+      - "3306:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - attic
+
+networks:
+  attic:
+    driver: bridge
+
+volumes:
+  dbdata:
+    driver: local

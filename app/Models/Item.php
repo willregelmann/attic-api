@@ -2,40 +2,30 @@
 
 namespace App\Models;
 
+use App\Traits\UsesUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Item extends Model
 {
-    use HasFactory;
+    use HasFactory, UsesUuid;
 
     protected $fillable = [
         'user_id',
         'collectible_id',
         'variant_id',
-        'quantity',
-        'condition',
+        'name',
         'personal_notes',
-        'component_status',
-        'completeness',
-        'acquisition_info',
-        'storage',
-        'digital_ownership',
         'availability',
-        'showcase_history',
         'user_images',
+        'is_favorite',
     ];
 
     protected $casts = [
-        'component_status' => 'array',
-        'acquisition_info' => 'array',
-        'storage' => 'array',
-        'digital_ownership' => 'array',
         'availability' => 'array',
-        'showcase_history' => 'array',
         'user_images' => 'array',
+        'is_favorite' => 'boolean',
     ];
 
     public function user(): BelongsTo

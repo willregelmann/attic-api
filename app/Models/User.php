@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\UsesUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -11,7 +12,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, UsesUuid;
 
     /**
      * The attributes that are mass assignable.
@@ -19,16 +20,11 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'username',
+        'name',
         'email',
         'google_id',
         'google_avatar',
         'email_verified_at',
-        'profile',
-        'preferences',
-        'trade_rating',
-        'subscription',
-        'last_active_at',
     ];
 
     /**
@@ -49,26 +45,12 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'profile' => 'array',
-            'preferences' => 'array',
-            'trade_rating' => 'array',
-            'subscription' => 'array',
-            'last_active_at' => 'datetime',
+            'password' => 'hashed',
         ];
-    }
-
-    public function collections(): HasMany
-    {
-        return $this->hasMany(Collection::class, 'contributed_by');
     }
 
     public function items(): HasMany
     {
         return $this->hasMany(Item::class);
-    }
-
-    public function collectibles(): HasMany
-    {
-        return $this->hasMany(Collectible::class, 'contributed_by');
     }
 }

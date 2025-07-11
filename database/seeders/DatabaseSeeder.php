@@ -2,8 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -13,8 +11,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([
-            CoreDataSeeder::class,
-        ]);
+        // Empty database seeder - no initial data
+        // Users will create their own data through the UI to test the experience
     }
 }
