@@ -1,21 +1,21 @@
 {
   "version": 2,
-  "functions": {
-    "api/*.php": {
-      "runtime": "vercel-php@0.7.0"
+  "builds": [
+    {
+      "src": "api/index.php",
+      "use": "vercel-php@0.7.0"
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
     }
-  },
+  ],
   "routes": [
     {
       "src": "/(.*)",
       "dest": "/api/index.php"
     }
   ],
-  "build": {
-    "env": {
-      "COMPOSER_CACHE_DIR": "/tmp/.composer"
-    }
-  },
   "env": {
     "APP_ENV": "production",
     "APP_DEBUG": "false",
