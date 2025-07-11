@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 
 /*
 |--------------------------------------------------------------------------
@@ -82,6 +83,57 @@ Route::get('test', function () {
         'php_version' => PHP_VERSION,
         'laravel_version' => app()->version()
     ]);
+});
+
+// Database diagnostic endpoint
+Route::get('db-test', function () {
+    try {
+        $dbConfig = config('database.connections.sqlite');
+        $dbPath = $dbConfig['database'];
+        
+        $response = [
+            'database_config' => $dbConfig,
+            'database_file_exists' => file_exists($dbPath),
+            'database_file_readable' => is_readable($dbPath),
+            'database_file_writable' => is_writable($dbPath),
+            'current_working_directory' => getcwd(),
+            'database_absolute_path' => realpath($dbPath) ?: 'File not found',
+        ];
+        
+        // Try to connect to database
+        try {
+            $pdo = new PDO('sqlite:' . $dbPath);
+            $response['pdo_connection'] = 'successful';
+            
+            // Try a simple query
+            $stmt = $pdo->query("SELECT name FROM sqlite_master WHERE type='table'");
+            $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $response['tables'] = $tables;
+            
+        } catch (Exception $e) {
+            $response['pdo_connection'] = 'failed';
+            $response['pdo_error'] = $e->getMessage();
+        }
+        
+        // Try Laravel DB connection
+        try {
+            $tables = DB::select("SELECT name FROM sqlite_master WHERE type='table'");
+            $response['laravel_db_connection'] = 'successful';
+            $response['laravel_tables'] = collect($tables)->pluck('name')->toArray();
+        } catch (Exception $e) {
+            $response['laravel_db_connection'] = 'failed';
+            $response['laravel_db_error'] = $e->getMessage();
+        }
+        
+        return response()->json($response);
+        
+    } catch (Exception $e) {
+        return response()->json([
+            'error' => 'Database diagnostic failed',
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
 });
 
 // Health check with optional collections data
