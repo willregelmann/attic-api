@@ -13,8 +13,8 @@
     }
   ],
   "env": {
-    "APP_ENV": "local",
-    "APP_DEBUG": "true",
+    "APP_ENV": "production",
+    "APP_DEBUG": "false",
     "APP_KEY": "base64:M9HZpBEwZvm/Bo1aFd2cqgvDA/pkTZgi3xyX5YUSfys=",
     "VIEW_COMPILED_PATH": "/tmp",
     "CACHE_DRIVER": "array",
