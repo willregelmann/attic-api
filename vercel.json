@@ -20,7 +20,12 @@
     "CACHE_DRIVER": "array",
     "LOG_CHANNEL": "stderr",
     "SESSION_DRIVER": "array",
-    "DB_CONNECTION": "sqlite",
-    "DB_DATABASE": ":memory:"
+    "DB_CONNECTION": "pgsql",
+    "DATABASE_URL": "postgres://default:OHk1DjfapsC3@ep-square-field-a41ug2o6-pooler.us-east-1.aws.neon.tech/verceldb?sslmode=require",
+    "DB_HOST": "ep-square-field-a41ug2o6-pooler.us-east-1.aws.neon.tech",
+    "DB_PORT": "5432",
+    "DB_DATABASE": "verceldb",
+    "DB_USERNAME": "default",
+    "DB_PASSWORD": "OHk1DjfapsC3"
   }
 }

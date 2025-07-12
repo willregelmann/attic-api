@@ -73,13 +73,50 @@ php artisan make:seeder SeederName
 ```
 
 ### Deployment
+
+### Production Deployment on Vercel
+
+#### Database Configuration
+The API uses **Vercel Postgres** (powered by Neon) in production:
+- **Database Name**: `wills-attic-postgres`
+- **Connection Type**: Pooled connections via pgbouncer
+- **Region**: US East 1
+- **SSL**: Required
+
+#### Environment Variables
+The following environment variables are automatically provided by Vercel when the Postgres database is linked:
+- `DATABASE_URL` - Main pooled connection string (recommended for most uses)
+- `DATABASE_URL_UNPOOLED` - Direct connection without pgbouncer (for migrations)
+- `POSTGRES_URL` - Alias for DATABASE_URL
+- `POSTGRES_URL_NON_POOLING` - Alias for DATABASE_URL_UNPOOLED
+
+#### Vercel Deployment
 ```bash
 # Deploy to Vercel
 vercel --prod
 
 # Check deployment logs
 vercel logs [deployment-url]
+
+# Run migrations on production database
+php artisan migrate --force --database=pgsql
 ```
+
+#### API URLs
+- **Production URL**: `https://attic-api-tau.vercel.app`
+- **API Base Path**: `/api`
+- **Health Check**: `https://attic-api-tau.vercel.app/api/health`
+
+#### Database Migrations
+When running migrations against the production database:
+1. Use the `DATABASE_URL_UNPOOLED` connection to avoid pgbouncer limitations
+2. Run migrations locally with: `php artisan migrate --database=pgsql --force`
+3. Or use Vercel's database console for direct SQL execution
+
+#### Troubleshooting Production Issues
+- **500 Errors**: Usually database connection issues - check env vars are properly set
+- **404 Errors**: Route caching issues - ensure APP_ENV is set correctly
+- **Database Errors**: Verify migrations have run and database credentials are correct
 
 ## Key Implementation Details
 
