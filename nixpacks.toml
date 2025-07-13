@@ -3,7 +3,7 @@
   nodejs = "18"
 
 [variables]
-  PORT = "8080"
+  PORT = 8080
 
 [phases.setup]
   nixPkgs = ["php83", "php83Extensions.pdo", "php83Extensions.pdo_pgsql", "php83Extensions.pgsql", "nodejs_18", "npm"]
@@ -21,7 +21,7 @@
   ]
 
 [phases.start]
-  cmd = "php artisan serve --host=0.0.0.0 --port=$PORT"
+  cmd = "php artisan serve --host=0.0.0.0 --port=${PORT:-8080}"
 
 [staticAssets]
   [staticAssets.public]
