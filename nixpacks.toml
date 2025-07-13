@@ -16,7 +16,8 @@
 [phases.build]
   cmds = [
     "npm ci",
-    "npm run build"
+    "npm run build",
+    "php artisan config:clear"
   ]
 
 [phases.start]

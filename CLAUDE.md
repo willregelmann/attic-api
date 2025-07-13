@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Will's Attic is a collectibles management platform API built with Laravel 12.x, designed for Vercel serverless deployment. The system manages collections, collectibles, and user items with Google OAuth authentication and planned GraphQL API support via Lighthouse.
+Will's Attic is a collectibles management platform API built with Laravel 12.x, designed for Railway deployment. The system manages collections, collectibles, and user items with Google OAuth authentication and planned GraphQL API support via Lighthouse.
 
 ## Architecture
 
@@ -74,49 +74,76 @@ php artisan make:seeder SeederName
 
 ### Deployment
 
-### Production Deployment on Vercel
+### Production Deployment on Railway
 
 #### Database Configuration
-The API uses **Vercel Postgres** (powered by Neon) in production:
-- **Database Name**: `wills-attic-postgres`
-- **Connection Type**: Pooled connections via pgbouncer
-- **Region**: US East 1
-- **SSL**: Required
+The API uses **Railway PostgreSQL** in production:
+- **Database Type**: Managed PostgreSQL 
+- **Connection**: Direct connection with full PostgreSQL extension support
+- **SSL**: Automatically configured
+- **Automatic Backups**: Included with Railway
 
 #### Environment Variables
-The following environment variables are automatically provided by Vercel when the Postgres database is linked:
-- `DATABASE_URL` - Main pooled connection string (recommended for most uses)
-- `DATABASE_URL_UNPOOLED` - Direct connection without pgbouncer (for migrations)
-- `POSTGRES_URL` - Alias for DATABASE_URL
-- `POSTGRES_URL_NON_POOLING` - Alias for DATABASE_URL_UNPOOLED
+Railway automatically provides PostgreSQL environment variables:
+- `DATABASE_URL` - Complete PostgreSQL connection string
+- `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` - Individual connection parameters
 
-#### Vercel Deployment
+Additional Laravel environment variables (set in Railway dashboard):
 ```bash
-# Deploy to Vercel
-vercel --prod
+APP_NAME=AtticAPI
+APP_ENV=production
+APP_KEY=base64:M9HZpBEwZvm/Bo1aFd2cqgvDA/pkTZgi3xyX5YUSfys=
+APP_DEBUG=false
+APP_URL=https://attic-api-production.up.railway.app
+DB_CONNECTION=pgsql
+LOG_CHANNEL=stderr
+CACHE_STORE=database
+SESSION_DRIVER=database
+QUEUE_CONNECTION=database
+```
+
+#### Railway Deployment
+```bash
+# Login to Railway
+railway login
+
+# Link project (after creating on Railway dashboard)
+railway link
+
+# Deploy current directory
+railway up
 
 # Check deployment logs
-vercel logs [deployment-url]
+railway logs
 
-# Run migrations on production database
-php artisan migrate --force --database=pgsql
+# Run commands with Railway environment
+railway run php artisan migrate --force
 ```
 
 #### API URLs
-- **Production URL**: `https://attic-api-tau.vercel.app`
+- **Production URL**: `https://[project-name].up.railway.app`
 - **API Base Path**: `/api`
-- **Health Check**: `https://attic-api-tau.vercel.app/api/health`
+- **Health Check**: `https://[project-name].up.railway.app/api/health`
+
+#### Deployment Configuration
+Railway uses the following configuration files:
+- `railway.json` - Railway-specific deployment settings
+- `Procfile` - Process definition for web server
+- `nixpacks.toml` - Build configuration and optimization
+- `deploy.sh` - Automated deployment script with Laravel optimizations
 
 #### Database Migrations
-When running migrations against the production database:
-1. Use the `DATABASE_URL_UNPOOLED` connection to avoid pgbouncer limitations
-2. Run migrations locally with: `php artisan migrate --database=pgsql --force`
-3. Or use Vercel's database console for direct SQL execution
+Railway handles database migrations during deployment:
+1. Migrations run automatically via `deploy.sh` script
+2. Use `railway run php artisan migrate` for manual migrations
+3. Railway PostgreSQL has full extension support (no compatibility issues)
 
 #### Troubleshooting Production Issues
-- **500 Errors**: Usually database connection issues - check env vars are properly set
-- **404 Errors**: Route caching issues - ensure APP_ENV is set correctly
-- **Database Errors**: Verify migrations have run and database credentials are correct
+- **Build Errors**: Check Railway build logs in dashboard
+- **Runtime Errors**: Use `railway logs` to view application logs
+- **Database Errors**: Railway PostgreSQL has full PHP extension support
+- **Environment Variables**: Verify all Laravel variables are set in Railway dashboard
+- **Custom Domains**: Configure in Railway dashboard under service settings
 
 ## Key Implementation Details
 
@@ -138,28 +165,31 @@ When running migrations against the production database:
 - Sanctum migrations: personal_access_tokens
 - Future migrations planned for showcases, wishlists, trading system
 
-### Vercel Configuration
-- PHP runtime: `vercel-php@0.5.0`
-- Serverless functions in `/api/` directory
-- Laravel routes accessible via `/api/index.php`
-- Environment variables configured for production caching
+### Railway Configuration
+- **Runtime**: Nixpacks with PHP 8.3 and Node.js for asset building
+- **Process Management**: Supervised PHP application server
+- **Asset Building**: Vite builds assets during deployment
+- **Caching**: Laravel config/route/view caching enabled in production
+- **Health Checks**: Railway monitors `/api/health` endpoint
 
 ## Current Implementation Status
 
 ### ✅ Completed
-- Laravel 12 project structure with Vercel deployment
+- Laravel 12 project structure with Railway deployment
 - Google OAuth authentication system
 - Core database models and relationships
 - API authentication endpoints
 - User management with profile data
 - Database seeders with sample data
+- Railway deployment configuration (nixpacks, Procfile, deployment scripts)
+- PostgreSQL database setup with full extension support
 - Comprehensive API documentation
 
 ### 🚧 In Progress / Planned
 - GraphQL schema implementation (Lighthouse installed)
 - Collection/Item CRUD operations
 - Search functionality (Algolia integration planned)
-- File upload system (Vercel Blob Storage)
+- File upload system (Railway Volumes or external storage)
 - Trading system (wishlists, offers, matches)
 - Real-time features (WebSockets)
 
@@ -167,8 +197,20 @@ When running migrations against the production database:
 
 ### Required Environment Variables
 ```bash
-# Database (production)
-DATABASE_URL=mysql://... # or postgres://...
+# Database (automatically provided by Railway PostgreSQL)
+DATABASE_URL=postgres://...
+PGHOST=...
+PGPORT=5432
+PGDATABASE=...
+PGUSER=...
+PGPASSWORD=...
+
+# Laravel Configuration
+APP_NAME=AtticAPI
+APP_ENV=production
+APP_KEY=base64:M9HZpBEwZvm/Bo1aFd2cqgvDA/pkTZgi3xyX5YUSfys=
+APP_DEBUG=false
+APP_URL=https://[your-app].up.railway.app
 
 # Google OAuth
 GOOGLE_CLIENT_ID=your_google_client_id
@@ -176,7 +218,6 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_REDIRECT_URI=your_callback_url
 
 # Optional integrations
-VERCEL_BLOB_READ_WRITE_TOKEN=...
 ALGOLIA_APP_ID=...
 ALGOLIA_SECRET=...
 SENDGRID_API_KEY=...
@@ -185,7 +226,7 @@ SENDGRID_API_KEY=...
 ### Sanctum Configuration
 - Stateful domains configured for frontend integration
 - Token expiration: 30 days
-- CORS configured for `*.vercel.app` domains
+- CORS configured for `*.up.railway.app` domains and frontend domains
 
 ## Testing Strategy
 
@@ -231,4 +272,4 @@ Consistent JSON response structure:
 - `PROJECT_REQUIREMENTS.md`: Original project specifications and full data model requirements
 - `attic-api.postman_collection.json`: Postman collection for API testing
 
-The codebase follows Laravel conventions and is optimized for Vercel serverless deployment while maintaining compatibility with traditional hosting environments.
+The codebase follows Laravel conventions and is optimized for Railway deployment with full PostgreSQL support and traditional hosting compatibility.
