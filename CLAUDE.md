@@ -100,6 +100,11 @@ LOG_CHANNEL=stderr
 CACHE_STORE=database
 SESSION_DRIVER=database
 QUEUE_CONNECTION=database
+
+# Google OAuth (required for authentication)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_REDIRECT_URI=https://attic-api-production.up.railway.app/api/auth/google/callback
 ```
 
 #### Railway Deployment
@@ -107,35 +112,38 @@ QUEUE_CONNECTION=database
 # Login to Railway
 railway login
 
-# Link project (after creating on Railway dashboard)
-railway link
+# Link project (from attic-api directory)
+railway link --project 12d4f6b0-bfc3-42ad-b823-7df2872588b4
 
-# Deploy current directory
-railway up
+# Railway is connected to GitHub for automatic deployments
+# Simply push to main branch to deploy:
+git push origin main
 
 # Check deployment logs
-railway logs
+railway logs --service attic-api
 
 # Run commands with Railway environment
-railway run php artisan migrate --force
+railway run --service attic-api php artisan migrate --force
 ```
 
+**Important**: Railway deploys automatically from GitHub. Do not use `railway up` as it uploads local files instead of using the GitHub repository.
+
 #### API URLs
-- **Production URL**: `https://[project-name].up.railway.app`
+- **Production URL**: `https://attic-api-production.up.railway.app`
 - **API Base Path**: `/api`
-- **Health Check**: `https://[project-name].up.railway.app/api/health`
+- **Health Check**: `https://attic-api-production.up.railway.app/api/health`
 
 #### Deployment Configuration
 Railway uses the following configuration files:
-- `railway.json` - Railway-specific deployment settings
-- `Procfile` - Process definition for web server
-- `nixpacks.toml` - Build configuration and optimization
-- `deploy.sh` - Automated deployment script with Laravel optimizations
+- `railway.json` - Railway-specific deployment settings with automatic migrations
+- `server.php` - Custom PHP server script to handle PORT environment variable
+- `nixpacks.toml` - Build configuration with PHP 8.3 and PostgreSQL extensions
+- `Procfile` - Process definition pointing to custom server.php
 
 #### Database Migrations
 Railway handles database migrations during deployment:
-1. Migrations run automatically via `deploy.sh` script
-2. Use `railway run php artisan migrate` for manual migrations
+1. Migrations run automatically via `releaseCommand` in railway.json
+2. Use `railway run --service attic-api php artisan migrate --force` for manual migrations
 3. Railway PostgreSQL has full extension support (no compatibility issues)
 
 #### Troubleshooting Production Issues
