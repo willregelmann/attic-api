@@ -9,41 +9,37 @@ services:
     container_name: attic-api
     restart: unless-stopped
     working_dir: /var/www
+    ports:
+      - "8080:8080"
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=attic
+      - DB_USERNAME=attic
+      - DB_PASSWORD=secret
     volumes:
       - ./:/var/www
       - ./storage:/var/www/storage
-    networks:
-      - attic
-
-  webserver:
-    image: nginx:alpine
-    container_name: attic-webserver
-    restart: unless-stopped
-    ports:
-      - "8000:80"
-    volumes:
-      - ./:/var/www
-      - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
     depends_on:
-      - app
+      - db
     networks:
       - attic
 
   db:
-    image: mysql:8.0
+    image: postgres:15
     container_name: attic-db
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: attic
-      MYSQL_ROOT_PASSWORD: secret
-      MYSQL_PASSWORD: secret
-      MYSQL_USER: attic
-      SERVICE_TAGS: dev
-      SERVICE_NAME: mysql
+      POSTGRES_DB: attic
+      POSTGRES_USER: attic
+      POSTGRES_PASSWORD: secret
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - dbdata:/var/lib/mysql
+      - dbdata:/var/lib/postgresql/data
     networks:
       - attic
 
