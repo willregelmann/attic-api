@@ -176,36 +176,41 @@ return new class extends Migration
     {
         // Update collectible foreign keys
         DB::statement('
-            UPDATE collectibles c
-            JOIN users u ON c.contributed_by = u.id
-            SET c.contributed_by_uuid = u.uuid
-            WHERE c.contributed_by IS NOT NULL
+            UPDATE collectibles
+            SET contributed_by_uuid = u.uuid
+            FROM users u
+            WHERE collectibles.contributed_by = u.id
+            AND collectibles.contributed_by IS NOT NULL
         ');
 
         // Update item foreign keys
         DB::statement('
-            UPDATE items i
-            JOIN users u ON i.user_id = u.id
-            SET i.user_uuid = u.uuid
+            UPDATE items
+            SET user_uuid = u.uuid
+            FROM users u
+            WHERE items.user_id = u.id
         ');
 
         DB::statement('
-            UPDATE items i
-            JOIN collectibles c ON i.collectible_id = c.id
-            SET i.collectible_uuid = c.uuid
+            UPDATE items
+            SET collectible_uuid = c.uuid
+            FROM collectibles c
+            WHERE items.collectible_id = c.id
         ');
 
         // Update pivot table foreign keys
         DB::statement('
-            UPDATE collectible_collection cc
-            JOIN collections c ON cc.collection_id = c.id
-            SET cc.collection_uuid = c.uuid
+            UPDATE collectible_collection
+            SET collection_uuid = c.uuid
+            FROM collections c
+            WHERE collectible_collection.collection_id = c.id
         ');
 
         DB::statement('
-            UPDATE collectible_collection cc
-            JOIN collectibles c ON cc.collectible_id = c.id
-            SET cc.collectible_uuid = c.uuid
+            UPDATE collectible_collection
+            SET collectible_uuid = c.uuid
+            FROM collectibles c
+            WHERE collectible_collection.collectible_id = c.id
         ');
     }
 };
