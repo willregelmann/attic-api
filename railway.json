@@ -4,7 +4,7 @@
     "builder": "DOCKERFILE"
   },
   "deploy": {
-    "releaseCommand": "php artisan migrate --force",
+    "releaseCommand": "bash -c 'for i in {1..30}; do php artisan migrate --force && break || sleep 2; done'",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
