@@ -23,11 +23,17 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www
 
-# Copy existing application directory contents
+# Copy composer files first (for layer caching)
+COPY composer.json composer.lock ./
+
+# Install dependencies (this layer will be cached if composer files don't change)
+RUN composer install --no-dev --optimize-autoloader --no-scripts
+
+# Copy application files
 COPY . .
 
-# Install dependencies
-RUN composer install --no-dev --optimize-autoloader
+# Run composer scripts (autoload generation, etc.)
+RUN composer run-script post-autoload-dump
 
 # Expose port
 EXPOSE 8080
