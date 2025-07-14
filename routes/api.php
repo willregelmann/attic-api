@@ -33,6 +33,19 @@ Route::prefix('auth')->group(function () {
                 ->getTargetUrl()
         ]);
     });
+    
+    // Debug endpoint to check environment configuration
+    Route::get('debug/config', function () {
+        return response()->json([
+            'app_env' => env('APP_ENV'),
+            'app_debug' => env('APP_DEBUG'),
+            'database_connection' => env('DB_CONNECTION'),
+            'google_client_id_set' => !empty(env('GOOGLE_CLIENT_ID')),
+            'google_client_secret_set' => !empty(env('GOOGLE_CLIENT_SECRET')),
+            'google_redirect_uri' => env('GOOGLE_REDIRECT_URI'),
+            'database_connected' => DB::connection()->getPdo() ? true : false,
+        ]);
+    });
 });
 
 // Protected routes requiring authentication
