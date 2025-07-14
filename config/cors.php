@@ -23,12 +23,15 @@ return [
         'http://localhost:3000',
         'http://localhost:3001',
         'https://attic-ilwnq9i2k-will-regelmanns-projects.vercel.app',
+        'https://attic-ui.vercel.app',
+        'https://attic-ui-production.up.railway.app',
         'https://localhost:3000',
         'https://localhost:3001',
     ],
 
     'allowed_origins_patterns' => [
         'https://*.vercel.app',
+        'https://*.up.railway.app',
         'http://localhost:*',
         'https://localhost:*',
     ],
