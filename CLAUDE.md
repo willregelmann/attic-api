@@ -21,10 +21,12 @@ Will's Attic is a collectibles management platform API built with Laravel 12.x, 
 - User creation/linking with automatic username generation
 
 ### Database Design
-- Uses JSON columns extensively for flexible metadata storage
-- Proper indexing on foreign keys and frequently queried fields
-- Supports both SQLite (development) and MySQL/PostgreSQL (production)
-- Migration files follow Laravel conventions with descriptive names
+- **Primary Keys**: All models use UUIDs instead of auto-increment integers
+- **JSON Columns**: Extensive use for flexible metadata storage
+- **Indexing**: Proper indexes on foreign keys and frequently queried fields
+- **PostgreSQL**: Production and local development use PostgreSQL 15
+- **Sanctum Compatibility**: personal_access_tokens table supports UUID tokenable_id
+- **Migration files**: Follow Laravel conventions with PostgreSQL-compatible syntax
 
 ### API Structure
 - RESTful API endpoints under `/api/` prefix
@@ -35,19 +37,23 @@ Will's Attic is a collectibles management platform API built with Laravel 12.x, 
 
 ## Development Commands
 
-### Daily Development
+### Local Development (Docker)
 ```bash
-# Start development server with queue and logs
-composer run dev
+# Start full environment (API + PostgreSQL)
+docker-compose up -d
 
-# Run tests
-composer run test
-# OR for specific test
-php artisan test --filter=AuthTest
+# View logs
+docker-compose logs -f
 
-# Database operations
-php artisan migrate
-php artisan migrate:rollback
+# Run commands in container
+docker-compose exec -T app php artisan migrate
+docker-compose exec -T app php artisan test
+docker-compose exec -T app php artisan test --filter=AuthTest
+docker-compose exec -T app ./vendor/bin/pint
+docker-compose exec -T app php artisan tinker
+
+# Stop environment
+docker-compose down
 php artisan db:seed
 php artisan db:seed --class=CoreDataSeeder
 
@@ -134,17 +140,20 @@ railway run --service attic-api php artisan migrate --force
 - **Health Check**: `https://attic-api-production.up.railway.app/api/health`
 
 #### Deployment Configuration
-Railway uses the following configuration files:
-- `railway.json` - Railway-specific deployment settings with automatic migrations
-- `server.php` - Custom PHP server script to handle PORT environment variable
-- `nixpacks.toml` - Build configuration with PHP 8.3 and PostgreSQL extensions
-- `Procfile` - Process definition pointing to custom server.php
+Railway uses Docker deployment with the following configuration files:
+- `Dockerfile` - Docker image with PHP 8.3, PostgreSQL extensions, and optimized layer caching
+- `railway.json` - Railway deployment settings with automatic migrations (retry logic)
+- `server.php` - Custom PHP server script for Railway PORT handling
+- `.dockerignore` - Excludes unnecessary files for faster builds
+- `docker-compose.yml` - Local development environment (PostgreSQL 15)
 
 #### Database Migrations
 Railway handles database migrations during deployment:
-1. Migrations run automatically via `releaseCommand` in railway.json
-2. Use `railway run --service attic-api php artisan migrate --force` for manual migrations
-3. Railway PostgreSQL has full extension support (no compatibility issues)
+1. **Automatic**: Migrations run via `releaseCommand` with retry logic for database timing
+2. **Manual**: Use `railway run --service attic-api php artisan migrate --force`
+3. **Local**: Use `docker-compose exec -T app php artisan migrate`
+4. **UUID Support**: All migrations compatible with PostgreSQL and UUID primary keys
+5. **Sanctum**: personal_access_tokens table updated to support UUID tokenable_id
 
 #### Troubleshooting Production Issues
 - **Build Errors**: Check Railway build logs in dashboard
