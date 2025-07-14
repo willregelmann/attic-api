@@ -9,9 +9,7 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     zip \
     unzip \
-    libpq-dev \
-    nodejs \
-    npm
+    libpq-dev
 
 # Clear cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -30,9 +28,6 @@ COPY . .
 
 # Install dependencies
 RUN composer install --no-dev --optimize-autoloader
-
-# Build assets
-RUN npm ci && npm run build
 
 # Expose port
 EXPOSE 8080
