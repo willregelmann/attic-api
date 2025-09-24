@@ -3,8 +3,10 @@
 namespace App\GraphQL\Mutations;
 
 use App\Models\Item;
+use App\Models\ItemImage;
 use App\Models\ItemRelationship;
 use App\Models\CollectionMaintainer;
+use App\Services\ImageStorageService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use GraphQL\Type\Definition\ResolveInfo;
@@ -165,5 +167,54 @@ class CollectionMutations
         }
         
         return 'Item removed from collection successfully';
+    }
+    
+    public function setCollectionImage($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
+    {
+        $user = Auth::guard('sanctum')->user();
+        $collection = Item::findOrFail($args['collection_id']);
+        
+        // Check if user is a maintainer
+        $maintainer = CollectionMaintainer::where('collection_id', $collection->id)
+            ->where('user_id', $user->id)
+            ->first();
+            
+        if (!$maintainer) {
+            throw new \Exception('You do not have permission to modify this collection');
+        }
+        
+        return DB::transaction(function () use ($collection, $args, $user) {
+            // Remove existing primary image if exists
+            ItemImage::where('item_id', $collection->id)
+                ->where('is_primary', true)
+                ->update(['is_primary' => false]);
+            
+            // Store the image locally if it's an external URL
+            $imageUrl = $args['image_url'];
+            $imageService = new ImageStorageService();
+            $localUrl = $imageService->storeImageFromUrl($imageUrl, 'collection', $collection->name);
+            
+            // Use local URL if successfully downloaded, otherwise use original URL
+            $finalUrl = $localUrl ?: $imageUrl;
+            
+            // Create or update the image record
+            $image = ItemImage::updateOrCreate(
+                [
+                    'item_id' => $collection->id,
+                    'url' => $finalUrl,
+                ],
+                [
+                    'user_id' => $user->id,
+                    'alt_text' => $args['alt_text'] ?? $collection->name,
+                    'is_primary' => true,
+                    'metadata' => [
+                        'original_url' => $imageUrl,
+                        'uploaded_at' => now()->toIso8601String(),
+                    ]
+                ]
+            );
+            
+            return $image;
+        });
     }
 }
