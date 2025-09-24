@@ -236,7 +236,14 @@ class CollectionMutations
                 $publicUrl = $storage->url($path);
             } else {
                 // For local/Railway storage, use the /storage route
-                $baseUrl = rtrim(config('app.url'), '/');
+                $baseUrl = config('app.url');
+                
+                // Fallback to request URL if APP_URL is not properly configured
+                if (!$baseUrl || $baseUrl === 'http://localhost') {
+                    $baseUrl = request()->getSchemeAndHttpHost();
+                }
+                
+                $baseUrl = rtrim($baseUrl, '/');
                 $publicUrl = $baseUrl . '/storage/' . $path;
             }
             
