@@ -95,9 +95,38 @@ ls -la public/storage/ || echo "No storage link"
 echo "Testing symlink access:"
 ls -la public/storage/images/collections/ 2>/dev/null || echo "Cannot access collections through symlink"
 
+# Start the scheduler in the background
+echo "Starting Laravel scheduler..."
+while true; do
+    php artisan schedule:run --verbose --no-interaction
+    sleep 60
+done &
+SCHEDULER_PID=$!
+echo "Scheduler started with PID: $SCHEDULER_PID"
+
+# Start the queue worker in the background
+echo "Starting queue worker..."
+php artisan queue:work --sleep=3 --tries=3 --timeout=90 &
+QUEUE_PID=$!
+echo "Queue worker started with PID: $QUEUE_PID"
+
+# Function to cleanup background processes
+cleanup() {
+    echo "Stopping background processes..."
+    kill $SCHEDULER_PID 2>/dev/null
+    kill $QUEUE_PID 2>/dev/null
+    exit
+}
+
+# Set up trap to cleanup on exit
+trap cleanup EXIT INT TERM
+
 # Check if Railway is using FrankenPHP
 if [ -f "/Caddyfile" ]; then
     echo "FrankenPHP/Caddy detected - storage will be served through Laravel routes"
+    # Keep the script running since FrankenPHP handles the web server
+    echo "Background services running. Press Ctrl+C to stop."
+    wait
 else
     # Start the Laravel server
     echo "Starting Laravel server on port ${PORT:-8000}..."
