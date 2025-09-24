@@ -1,0 +1,283 @@
+"A date string with format `Y-m-d`, e.g. `2011-05-23`."
+scalar Date @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Date")
+
+"A datetime string with format `Y-m-d H:i:s`, e.g. `2018-05-23 13:43:32`."
+scalar DateTime @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
+
+scalar JSON
+
+# Pagination types
+type ItemPaginator {
+    paginatorInfo: PaginatorInfo!
+    data: [Item!]!
+}
+
+type PaginatorInfo {
+    count: Int!
+    currentPage: Int!
+    firstItem: Int
+    hasMorePages: Boolean!
+    lastItem: Int
+    lastPage: Int!
+    perPage: Int!
+    total: Int!
+}
+
+# Item types enum
+enum ItemType {
+    COLLECTIBLE @enum(value: "collectible")
+    COLLECTION @enum(value: "collection")
+    VARIANT @enum(value: "variant")
+    COMPONENT @enum(value: "component")
+}
+
+# Relationship types enum
+enum RelationshipType {
+    CONTAINS @enum(value: "contains")
+    VARIANT_OF @enum(value: "variant_of")
+    COMPONENT_OF @enum(value: "component_of")
+    PART_OF @enum(value: "part_of")
+}
+
+# Item type (represents both collectibles and collections)
+type Item {
+    id: ID!
+    type: ItemType!
+    name: String!
+    metadata: JSON
+    created_at: DateTime!
+    updated_at: DateTime!
+
+    # Relationships
+    parents: [Item!] @belongsToMany(relation: "parents")
+    children: [Item!] @belongsToMany(relation: "children")
+    variants: [Item!] @belongsToMany(relation: "variants")
+    components: [Item!] @belongsToMany(relation: "components")
+    collections: [Item!] @belongsToMany(relation: "collections")
+
+    # Images
+    images: [ItemImage!] @hasMany
+    primaryImage: ItemImage
+
+    # Computed fields
+    childrenCount: Int @method(name: "getChildrenCountAttribute")
+    ownedChildrenCount: Int @method(name: "getOwnedChildrenCountAttribute")
+
+    # Maintainers (for collections)
+    maintainers: [CollectionMaintainer!] @hasMany
+
+    # User relationships (requires auth)
+    owners: [User!] @belongsToMany @guard
+    favoritedBy: [User!] @belongsToMany @guard
+}
+
+# Item relationship pivot
+type ItemRelationship {
+    id: ID!
+    parent_id: ID!
+    child_id: ID!
+    relationship_type: RelationshipType!
+    canonical_order: Int
+    metadata: JSON
+    created_at: DateTime!
+    updated_at: DateTime!
+
+    parent: Item! @belongsTo
+    child: Item! @belongsTo
+}
+
+# Item image type
+type ItemImage {
+    id: ID!
+    item_id: ID!
+    user_id: ID
+    url: String!
+    alt_text: String
+    is_primary: Boolean!
+    metadata: JSON
+    created_at: DateTime!
+    updated_at: DateTime!
+
+    item: Item! @belongsTo
+    user: User @belongsTo
+}
+
+# User type
+type User {
+    id: ID!
+    name: String!
+    email: String!
+    email_verified_at: DateTime
+    created_at: DateTime!
+    updated_at: DateTime!
+
+    # User's owned items (requires auth)
+    items: [Item!] @belongsToMany @guard
+
+    # User's favorite collections (requires auth)
+    favoriteCollections: [Item!] @belongsToMany @guard
+
+    # Images uploaded by user
+    uploadedImages: [ItemImage!] @hasMany @guard
+}
+
+# User item ownership (pivot with metadata)
+type UserItem {
+    id: ID!
+    user_id: ID!
+    item_id: ID!
+    metadata: JSON
+    created_at: DateTime!
+    updated_at: DateTime!
+
+    user: User! @belongsTo
+    item: Item! @belongsTo
+}
+
+# Collection statistics
+type CollectionStats {
+    totalItems: Int!
+    catalogedItems: Int!
+    ownedItems: Int! @guard
+    completionPercentage: Float! @guard
+}
+
+# Collection with stats
+type CollectionWithStats {
+    collection: Item!
+    stats: CollectionStats!
+}
+
+# Collection Maintainer type
+type CollectionMaintainer {
+    id: ID!
+    collection_id: ID!
+    user_id: ID!
+    role: String! # owner, maintainer, contributor
+    permissions: JSON
+    created_at: DateTime!
+    updated_at: DateTime!
+
+    collection: Item! @belongsTo
+    user: User! @belongsTo
+}
+
+
+# Login response
+type AuthPayload {
+    access_token: String!
+    token_type: String!
+    user: User!
+}
+
+type Query {
+    # ===== PUBLIC QUERIES (No auth required) =====
+
+    # Browse all collections
+    collections: [Item!]! @all(model: "App\\Models\\Item", scopes: ["collections"])
+
+    # Get a single collection by ID
+    collection(id: ID! @eq): Item @find
+
+    # Browse all items (collectibles)
+    items(type: ItemType @eq): [Item!]! @all(model: "App\\Models\\Item")
+
+    # Get a single item by ID
+    item(id: ID! @eq): Item @find
+
+    # Search items by name
+    searchItems(name: String!): [Item!]! @field(resolver: "App\\GraphQL\\Queries\\SearchItems")
+
+    # Get items in a collection
+    collectionItems(
+        collection_id: ID!
+        first: Int = 1000
+    ): [Item!]! @field(resolver: "App\\GraphQL\\Queries\\CollectionItems")
+
+    # Get variants of an item
+    itemVariants(item_id: ID!): [Item!]! @field(resolver: "App\\GraphQL\\Queries\\ItemVariants")
+
+    # ===== PRIVATE QUERIES (Auth required) =====
+
+    # Current authenticated user
+    me: User @auth(guard: "sanctum")
+
+    # User's owned items
+    myItems: [Item!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyItems")
+
+    # User's favorite collections
+    myFavoriteCollections: [CollectionWithStats!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyFavoriteCollections")
+
+    # User's items in a specific collection
+    myCollectionItems(
+        collection_id: ID!
+    ): [UserItem!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyCollectionItems")
+
+    # Collection completion stats for user
+    myCollectionStats(
+        collection_id: ID!
+    ): CollectionStats! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyCollectionStats")
+}
+
+type Mutation {
+    # ===== AUTHENTICATION =====
+
+    # Login
+    login(
+        email: String! @rules(apply: ["required", "email"])
+        password: String! @rules(apply: ["required"])
+    ): AuthPayload! @field(resolver: "App\\GraphQL\\Mutations\\AuthMutations@login")
+
+    # Logout
+    logout: String @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\AuthMutations@logout")
+
+    # Register
+    register(
+        name: String! @rules(apply: ["required", "string", "max:255"])
+        email: String! @rules(apply: ["required", "email", "unique:users,email"])
+        password: String! @rules(apply: ["required", "min:8"])
+    ): AuthPayload! @field(resolver: "App\\GraphQL\\Mutations\\AuthMutations@register")
+
+    # Google OAuth login
+    googleLogin(
+        google_token: String! @rules(apply: ["required"])
+    ): AuthPayload! @field(resolver: "App\\GraphQL\\Mutations\\AuthMutations@googleLogin")
+
+    # ===== USER ITEM MANAGEMENT (Auth required) =====
+
+    # Add item to user's collection
+    addItemToMyCollection(
+        item_id: ID!
+        metadata: JSON
+    ): UserItem! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserItemMutations@addItemToMyCollection")
+
+    # Update user's item metadata
+    updateMyItem(
+        item_id: ID!
+        metadata: JSON!
+    ): UserItem! @guard
+
+    # Remove item from user's collection
+    removeItemFromMyCollection(
+        item_id: ID!
+    ): String! @guard
+
+    # Favorite a collection
+    favoriteCollection(
+        collection_id: ID!
+    ): User! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\FavoriteMutations@favoriteCollection")
+
+    # Unfavorite a collection
+    unfavoriteCollection(
+        collection_id: ID!
+    ): User! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\FavoriteMutations@unfavoriteCollection")
+
+    # ===== ADMIN MUTATIONS (Future enhancement) =====
+    # These would require admin role checking
+
+    # createItem(...)
+    # updateItem(...)
+    # deleteItem(...)
+    # createRelationship(...)
+    # deleteRelationship(...)
+}
