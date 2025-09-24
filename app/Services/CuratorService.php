@@ -11,24 +11,15 @@ use Illuminate\Support\Facades\Log;
 
 class CuratorService
 {
-    protected string $provider;
     protected string $apiKey;
     protected string $apiUrl;
     protected string $defaultModel;
 
     public function __construct()
     {
-        $this->provider = config('services.ai.provider', 'anthropic');
-        
-        if ($this->provider === 'anthropic') {
-            $this->apiKey = config('services.anthropic.key', '');
-            $this->apiUrl = config('services.anthropic.url', 'https://api.anthropic.com');
-            $this->defaultModel = config('services.anthropic.model', 'claude-3-opus-20240229');
-        } else {
-            $this->apiKey = config('services.openai.key', '');
-            $this->apiUrl = config('services.openai.url', 'https://api.openai.com/v1');
-            $this->defaultModel = config('services.openai.model', 'gpt-4');
-        }
+        $this->apiKey = config('services.anthropic.key', '');
+        $this->apiUrl = config('services.anthropic.url', 'https://api.anthropic.com');
+        $this->defaultModel = config('services.anthropic.model', 'claude-3-sonnet-20240229');
     }
 
     /**
@@ -117,11 +108,7 @@ class CuratorService
         // Build the prompt
         $prompt = $this->buildPrompt($curator, $collection, $existingItems);
         
-        if ($this->provider === 'anthropic') {
-            return $this->callAnthropicAPI($config, $prompt);
-        } else {
-            return $this->callOpenAI($config, $prompt);
-        }
+        return $this->callAnthropicAPI($config, $prompt);
     }
     
     /**
@@ -160,37 +147,6 @@ class CuratorService
         }
         
         return [];
-    }
-    
-    /**
-     * Call OpenAI API
-     */
-    protected function callOpenAI(array $config, string $prompt): array
-    {
-        $systemPrompt = $config['personality'] ?? 'You are a helpful collection curator.';
-        $model = $config['ai_model'] ?? $this->defaultModel;
-        
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $this->apiKey,
-        ])->post($this->apiUrl . '/chat/completions', [
-            'model' => $model,
-            'messages' => [
-                ['role' => 'system', 'content' => $systemPrompt],
-                ['role' => 'user', 'content' => $prompt],
-            ],
-            'temperature' => $config['temperature'] ?? 0.7,
-            'max_tokens' => 2000,
-            'response_format' => ['type' => 'json_object'],
-        ]);
-
-        if (!$response->successful()) {
-            throw new \Exception('OpenAI API request failed: ' . $response->body());
-        }
-
-        $content = $response->json('choices.0.message.content');
-        $suggestions = json_decode($content, true);
-
-        return $this->parseSuggestions($suggestions);
     }
 
     /**
