@@ -35,4 +35,20 @@ return [
         ],
     ],
 
+    'ai' => [
+        'provider' => env('AI_PROVIDER', 'anthropic'), // 'anthropic' or 'openai'
+    ],
+    
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+        'url' => env('ANTHROPIC_API_URL', 'https://api.anthropic.com'),
+        'model' => env('ANTHROPIC_MODEL', 'claude-3-opus-20240229'),
+    ],
+
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+        'url' => env('OPENAI_API_URL', 'https://api.openai.com/v1'),
+        'model' => env('OPENAI_MODEL', 'gpt-4'),
+    ],
+
 ];
