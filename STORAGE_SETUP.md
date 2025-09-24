@@ -2,7 +2,38 @@
 
 Since Railway deployments are ephemeral (files are lost on redeploy), you need to set up persistent storage for uploaded images. Here are your options:
 
-## Option 1: Cloudflare R2 (Recommended - Free tier available)
+## Option 1: Railway Volumes (Recommended for simplicity)
+
+Railway now supports persistent volumes that can be attached to your service through their UI.
+
+### Setup Steps:
+
+1. **Create a Volume in Railway**
+   - Go to your Railway project
+   - Select your API service
+   - Go to the "Settings" tab
+   - Scroll to "Volumes" section
+   - Click "Add Volume"
+   - Set mount path to: `/storage`
+   - Set size (1GB should be plenty for a hobby project)
+
+2. **Deploy the Updated Code**
+   - The `start.sh` script will automatically detect the Railway volume
+   - It will create the necessary directories and symlinks
+   - Images will be stored persistently in the volume
+
+3. **That's it!**
+   - No additional configuration needed
+   - Images will persist across deployments
+   - The volume is automatically backed up by Railway
+
+### How it Works:
+- Railway sets `RAILWAY_VOLUME_MOUNT_PATH` environment variable
+- Our start.sh script detects this and symlinks Laravel's storage to the volume
+- All uploaded images go to the persistent volume
+- The public symlink is recreated on each deploy
+
+## Option 2: Cloudflare R2 (For larger scale)
 
 Cloudflare R2 is S3-compatible storage with no egress fees and a generous free tier (10GB storage, 10 million requests/month).
 
@@ -36,7 +67,7 @@ Cloudflare R2 is S3-compatible storage with no egress fees and a generous free t
    composer require league/flysystem-aws-s3-v3 "^3.0"
    ```
 
-## Option 2: AWS S3
+## Option 3: AWS S3
 
 Traditional S3 storage (costs for storage and bandwidth).
 
@@ -63,7 +94,7 @@ Traditional S3 storage (costs for storage and bandwidth).
    AWS_URL=https://your-bucket.s3.amazonaws.com
    ```
 
-## Option 3: Supabase Storage
+## Option 4: Supabase Storage
 
 Supabase offers storage with their PostgreSQL database service.
 
@@ -81,7 +112,7 @@ Supabase offers storage with their PostgreSQL database service.
 3. **Implement Custom Storage Driver**
    You'll need to create a custom Laravel storage driver for Supabase.
 
-## Option 4: Keep Local (Development Only)
+## Option 5: Keep Local (Development Only)
 
 For development/testing, you can use local storage, but images will be lost on each Railway deploy.
 
@@ -114,13 +145,14 @@ After setting up storage, test it:
 - Configure CORS on your storage bucket
 - Add your domain to allowed origins
 
-## Recommended: Cloudflare R2
+## Recommended: Railway Volumes
 
-For this project, R2 is recommended because:
-- Free tier is generous for small projects
-- No bandwidth/egress charges
-- S3-compatible API (works with existing code)
-- Global CDN included
-- Easy to set up
+For a hobby project, Railway Volumes are recommended because:
+- Simple setup through Railway UI
+- No additional services or accounts needed
+- Automatic backups included
+- No extra configuration required
+- Works out of the box with the updated start.sh script
+- Perfect for small to medium projects
 
-The code is already configured to support R2 - just add the environment variables!
+The code is already configured to support Railway volumes - just add the volume in Railway's UI!

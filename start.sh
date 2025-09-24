@@ -4,6 +4,29 @@ echo "Starting application..."
 echo "Environment: ${APP_ENV:-not set}"
 echo "Database: ${DB_CONNECTION:-not set}"
 
+# Setup storage for Railway volumes
+echo "Setting up storage..."
+if [ -n "$RAILWAY_VOLUME_MOUNT_PATH" ]; then
+    echo "Railway volume detected at: $RAILWAY_VOLUME_MOUNT_PATH"
+    
+    # Create storage directories in the volume
+    mkdir -p "$RAILWAY_VOLUME_MOUNT_PATH/app/public/images/collections"
+    
+    # Remove existing storage/app directory and symlink to volume
+    rm -rf storage/app
+    ln -sf "$RAILWAY_VOLUME_MOUNT_PATH/app" storage/app
+    
+    echo "Storage linked to Railway volume"
+else
+    echo "No Railway volume detected, using local storage"
+    # Ensure local storage directories exist
+    mkdir -p storage/app/public/images/collections
+fi
+
+# Create public storage symlink
+echo "Creating public storage symlink..."
+php artisan storage:link --force
+
 # Test database connection first
 echo "Testing database connection..."
 php artisan db:show
