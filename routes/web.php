@@ -39,6 +39,42 @@ Route::get('/storage/{path}', function ($path) {
         ->header('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
 })->where('path', '.*');
 
+Route::get('/debug-storage/{path}', function ($path) {
+    $fullPath = $path;
+    $diskPath = Storage::disk('public')->path($fullPath);
+    $exists = Storage::disk('public')->exists($fullPath);
+    
+    // Try to list parent directory if file doesn't exist
+    $dirContents = null;
+    if (!$exists) {
+        $dir = dirname($fullPath);
+        try {
+            if (Storage::disk('public')->exists($dir)) {
+                $dirContents = Storage::disk('public')->files($dir);
+            } else {
+                // Try to list what directories do exist
+                $dirContents = [
+                    'images_exists' => Storage::disk('public')->exists('images'),
+                    'collections_exists' => Storage::disk('public')->exists('images/collections'),
+                    'root_dirs' => Storage::disk('public')->directories(''),
+                    'images_dirs' => Storage::disk('public')->exists('images') ? Storage::disk('public')->directories('images') : [],
+                ];
+            }
+        } catch (\Exception $e) {
+            $dirContents = ['error' => $e->getMessage()];
+        }
+    }
+    
+    return response()->json([
+        'requested_path' => $path,
+        'disk_path' => $diskPath,
+        'exists' => $exists,
+        'storage_root' => Storage::disk('public')->path(''),
+        'railway_volume' => env('RAILWAY_VOLUME_MOUNT_PATH'),
+        'directory_contents' => $dirContents,
+    ]);
+})->where('path', '.*');
+
 Route::get('/health', function () {
     $health = [
         'status' => 'ok',
