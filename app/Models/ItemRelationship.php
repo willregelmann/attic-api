@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
-use App\Traits\HasUuid;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
 class ItemRelationship extends Pivot
 {
-    use HasUuid;
+    use HasUuids;
 
     protected $table = 'item_relationships';
 
