@@ -3,77 +3,17 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use App\Http\Controllers\StorageController;
 
 Route::get('/', function () {
     return view('welcome');
 });
 
 // Serve storage images directly
-Route::get('/storage/{path}', function ($path) {
-    $fullPath = $path;
-    
-    // Log for debugging
-    \Illuminate\Support\Facades\Log::info('Storage request', [
-        'path' => $path,
-        'disk_root' => Storage::disk('public')->path(''),
-        'exists' => Storage::disk('public')->exists($fullPath),
-        'railway_volume' => env('RAILWAY_VOLUME_MOUNT_PATH'),
-    ]);
-    
-    // Check if file exists in storage
-    if (!Storage::disk('public')->exists($fullPath)) {
-        \Illuminate\Support\Facades\Log::error('File not found in storage', [
-            'path' => $fullPath,
-            'attempted_path' => Storage::disk('public')->path($fullPath),
-        ]);
-        abort(404);
-    }
-    
-    // Get file content and mime type
-    $file = Storage::disk('public')->get($fullPath);
-    $mimeType = Storage::disk('public')->mimeType($fullPath);
-    
-    // Return file with appropriate headers
-    return response($file, 200)
-        ->header('Content-Type', $mimeType)
-        ->header('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
-})->where('path', '.*');
+Route::get('/storage/{path}', [StorageController::class, 'serve'])->where('path', '.*');
 
-Route::get('/debug-storage/{path}', function ($path) {
-    $fullPath = $path;
-    $diskPath = Storage::disk('public')->path($fullPath);
-    $exists = Storage::disk('public')->exists($fullPath);
-    
-    // Try to list parent directory if file doesn't exist
-    $dirContents = null;
-    if (!$exists) {
-        $dir = dirname($fullPath);
-        try {
-            if (Storage::disk('public')->exists($dir)) {
-                $dirContents = Storage::disk('public')->files($dir);
-            } else {
-                // Try to list what directories do exist
-                $dirContents = [
-                    'images_exists' => Storage::disk('public')->exists('images'),
-                    'collections_exists' => Storage::disk('public')->exists('images/collections'),
-                    'root_dirs' => Storage::disk('public')->directories(''),
-                    'images_dirs' => Storage::disk('public')->exists('images') ? Storage::disk('public')->directories('images') : [],
-                ];
-            }
-        } catch (\Exception $e) {
-            $dirContents = ['error' => $e->getMessage()];
-        }
-    }
-    
-    return response()->json([
-        'requested_path' => $path,
-        'disk_path' => $diskPath,
-        'exists' => $exists,
-        'storage_root' => Storage::disk('public')->path(''),
-        'railway_volume' => env('RAILWAY_VOLUME_MOUNT_PATH'),
-        'directory_contents' => $dirContents,
-    ]);
-})->where('path', '.*');
+// Debug storage
+Route::get('/debug-storage/{path}', [StorageController::class, 'debug'])->where('path', '.*');
 
 Route::get('/health', function () {
     $health = [

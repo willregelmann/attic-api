@@ -69,8 +69,7 @@ fi
 # Clear and cache configs for production
 echo "Optimizing for production..."
 php artisan config:cache
-# Don't cache routes in production as it can cause issues with closures
-# php artisan route:cache
+php artisan route:cache
 php artisan view:cache
 
 # List storage contents for debugging
