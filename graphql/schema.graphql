@@ -272,12 +272,37 @@ type Mutation {
         collection_id: ID!
     ): User! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\FavoriteMutations@unfavoriteCollection")
 
-    # ===== ADMIN MUTATIONS (Future enhancement) =====
-    # These would require admin role checking
-
-    # createItem(...)
-    # updateItem(...)
-    # deleteItem(...)
-    # createRelationship(...)
-    # deleteRelationship(...)
+    # ===== COLLECTION MANAGEMENT (Auth required) =====
+    
+    # Create a new collection
+    createCollection(
+        name: String! @rules(apply: ["required", "string", "max:255"])
+        metadata: JSON
+    ): Item! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CollectionMutations@createCollection")
+    
+    # Update a collection
+    updateCollection(
+        id: ID! @rules(apply: ["required", "exists:items,id"])
+        name: String @rules(apply: ["string", "max:255"])
+        metadata: JSON
+    ): Item! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CollectionMutations@updateCollection")
+    
+    # Delete a collection
+    deleteCollection(
+        id: ID! @rules(apply: ["required", "exists:items,id"])
+    ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CollectionMutations@deleteCollection")
+    
+    # Add item to collection
+    addItemToCollection(
+        collection_id: ID! @rules(apply: ["required", "exists:items,id"])
+        item_id: ID! @rules(apply: ["required", "exists:items,id"])
+        canonical_order: Int
+        metadata: JSON
+    ): ItemRelationship! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CollectionMutations@addItemToCollection")
+    
+    # Remove item from collection
+    removeItemFromCollection(
+        collection_id: ID! @rules(apply: ["required", "exists:items,id"])
+        item_id: ID! @rules(apply: ["required", "exists:items,id"])
+    ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CollectionMutations@removeItemFromCollection")
 }
