@@ -96,8 +96,8 @@ class CuratorMutations
         $newStatus = $curator->status === 'active' ? 'inactive' : 'active';
         $curator->update(['status' => $newStatus]);
 
-        // If activating and scheduled, calculate next run time
-        if ($newStatus === 'active' && $curator->schedule_type !== 'manual') {
+        // If activating, calculate next run time (always daily now)
+        if ($newStatus === 'active') {
             $curator->update(['next_run_at' => $curator->calculateNextRunTime()]);
         }
 
