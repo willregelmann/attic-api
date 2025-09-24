@@ -12,8 +12,20 @@ Route::get('/', function () {
 Route::get('/storage/{path}', function ($path) {
     $fullPath = $path;
     
+    // Log for debugging
+    \Illuminate\Support\Facades\Log::info('Storage request', [
+        'path' => $path,
+        'disk_root' => Storage::disk('public')->path(''),
+        'exists' => Storage::disk('public')->exists($fullPath),
+        'railway_volume' => env('RAILWAY_VOLUME_MOUNT_PATH'),
+    ]);
+    
     // Check if file exists in storage
     if (!Storage::disk('public')->exists($fullPath)) {
+        \Illuminate\Support\Facades\Log::error('File not found in storage', [
+            'path' => $fullPath,
+            'attempted_path' => Storage::disk('public')->path($fullPath),
+        ]);
         abort(404);
     }
     

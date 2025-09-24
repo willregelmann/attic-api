@@ -217,6 +217,19 @@ type Query {
     myCollectionStats(
         collection_id: ID!
     ): CollectionStats! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyCollectionStats")
+    
+    # ===== CURATOR QUERIES (Auth required) =====
+    
+    # Get curator for a collection
+    collectionCurator(
+        collection_id: ID!
+    ): CollectionCurator @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\CuratorQueries@getCollectionCurator")
+    
+    # Get pending suggestions for a collection
+    curatorSuggestions(
+        collection_id: ID!
+        status: String
+    ): [CuratorSuggestion!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\CuratorQueries@getCuratorSuggestions")
 }
 
 type Mutation {
@@ -314,4 +327,110 @@ type Mutation {
         mime_type: String! @rules(apply: ["required"])
         alt_text: String
     ): ItemImage! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CollectionMutations@uploadCollectionImage")
+    
+    # ===== CURATOR MANAGEMENT (Auth required) =====
+    
+    # Create a curator for a collection
+    createCurator(
+        collection_id: ID! @rules(apply: ["required", "exists:items,id"])
+        name: String! @rules(apply: ["required", "string", "max:255"])
+        description: String
+        curator_config: JSON!
+        schedule_type: String @rules(apply: ["in:manual,hourly,daily,weekly"])
+        auto_approve: Boolean
+        confidence_threshold: Int @rules(apply: ["min:0", "max:100"])
+    ): CollectionCurator! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@createCurator")
+    
+    # Update curator configuration
+    updateCurator(
+        id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
+        name: String
+        description: String
+        curator_config: JSON
+        schedule_type: String @rules(apply: ["in:manual,hourly,daily,weekly"])
+        auto_approve: Boolean
+        confidence_threshold: Int @rules(apply: ["min:0", "max:100"])
+    ): CollectionCurator! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@updateCurator")
+    
+    # Toggle curator status
+    toggleCuratorStatus(
+        id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
+    ): CollectionCurator! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@toggleCuratorStatus")
+    
+    # Manually run curator
+    runCurator(
+        id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
+    ): CuratorRunResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@runCurator")
+    
+    # Review a suggestion
+    reviewSuggestion(
+        id: ID! @rules(apply: ["required", "exists:curator_suggestions,id"])
+        action: String! @rules(apply: ["required", "in:approve,reject"])
+        notes: String
+        execute_now: Boolean
+    ): CuratorSuggestion! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@reviewSuggestion")
+    
+    # Delete a curator
+    deleteCurator(
+        id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
+    ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@deleteCurator")
+}
+
+# ===== CURATOR TYPES =====
+
+type CollectionCurator {
+    id: ID!
+    collection_id: ID!
+    collection: Item!
+    name: String!
+    description: String
+    status: String!
+    curator_config: JSON!
+    schedule_type: String!
+    schedule_config: JSON
+    last_run_at: DateTime
+    next_run_at: DateTime
+    auto_approve: Boolean!
+    confidence_threshold: Int!
+    suggestions_made: Int!
+    suggestions_approved: Int!
+    suggestions_rejected: Int!
+    performance_metrics: JSON
+    created_at: DateTime!
+    updated_at: DateTime!
+    
+    # Relationships
+    suggestions: [CuratorSuggestion!]!
+    pending_suggestions: [CuratorSuggestion!]!
+}
+
+type CuratorSuggestion {
+    id: ID!
+    curator_id: ID!
+    curator: CollectionCurator!
+    collection_id: ID!
+    collection: Item!
+    action_type: String!
+    item_id: ID
+    item: Item
+    suggestion_data: JSON!
+    reasoning: String!
+    confidence_score: Int!
+    status: String!
+    reviewed_by: ID
+    reviewer: User
+    reviewed_at: DateTime
+    review_notes: String
+    executed: Boolean!
+    executed_at: DateTime
+    execution_result: JSON
+    expires_at: DateTime
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type CuratorRunResult {
+    success: Boolean!
+    message: String!
+    curator: CollectionCurator
 }

@@ -49,8 +49,13 @@ fi
 # Clear and cache configs for production
 echo "Optimizing for production..."
 php artisan config:cache
-php artisan route:cache
+# Don't cache routes in production as it can cause issues with closures
+# php artisan route:cache
 php artisan view:cache
+
+# List storage contents for debugging
+echo "Storage contents:"
+ls -la storage/app/public/images/collections/ || echo "No images found"
 
 # Start the Laravel server
 echo "Starting server on port ${PORT:-8000}..."
