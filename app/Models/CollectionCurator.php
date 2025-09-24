@@ -15,8 +15,6 @@ class CollectionCurator extends Model
         'collection_id',
         'prompt',
         'status',
-        'schedule_type',
-        'schedule_config',
         'last_run_at',
         'next_run_at',
         'auto_approve',
@@ -28,7 +26,6 @@ class CollectionCurator extends Model
     ];
 
     protected $casts = [
-        'schedule_config' => 'array',
         'performance_metrics' => 'array',
         'auto_approve' => 'boolean',
         'last_run_at' => 'datetime',
@@ -66,26 +63,14 @@ class CollectionCurator extends Model
             return false;
         }
 
-        if ($this->schedule_type === 'manual') {
-            return false;
-        }
-
+        // Always runs daily, check if next run time has passed
         return $this->next_run_at && $this->next_run_at->isPast();
     }
 
     public function calculateNextRunTime(): ?string
     {
-        switch ($this->schedule_type) {
-            case 'hourly':
-                return now()->addHour();
-            case 'daily':
-                return now()->addDay();
-            case 'weekly':
-                return now()->addWeek();
-            case 'manual':
-            default:
-                return null;
-        }
+        // Always runs daily
+        return now()->addDay();
     }
 
     public function getApprovalRate(): float

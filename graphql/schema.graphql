@@ -334,7 +334,6 @@ type Mutation {
     createCurator(
         collection_id: ID! @rules(apply: ["required", "exists:items,id"])
         prompt: String! @rules(apply: ["required", "string"])
-        schedule_type: String @rules(apply: ["in:manual,hourly,daily,weekly"])
         auto_approve: Boolean
         confidence_threshold: Int @rules(apply: ["min:0", "max:100"])
     ): CollectionCurator! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@createCurator")
@@ -343,7 +342,6 @@ type Mutation {
     updateCurator(
         id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
         prompt: String
-        schedule_type: String @rules(apply: ["in:manual,hourly,daily,weekly"])
         auto_approve: Boolean
         confidence_threshold: Int @rules(apply: ["min:0", "max:100"])
     ): CollectionCurator! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@updateCurator")
@@ -380,8 +378,6 @@ type CollectionCurator {
     collection: Item!
     prompt: String!
     status: String!
-    schedule_type: String!
-    schedule_config: JSON
     last_run_at: DateTime
     next_run_at: DateTime
     auto_approve: Boolean!

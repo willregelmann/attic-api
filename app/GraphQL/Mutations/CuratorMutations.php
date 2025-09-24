@@ -40,10 +40,9 @@ class CuratorMutations
             'collection_id' => $collection->id,
             'prompt' => $args['prompt'],
             'status' => 'inactive',
-            'schedule_type' => $args['schedule_type'] ?? 'manual',
-            'schedule_config' => null,
             'auto_approve' => $args['auto_approve'] ?? false,
             'confidence_threshold' => $args['confidence_threshold'] ?? 80,
+            'next_run_at' => now()->addDay(), // First run will be tomorrow
         ]);
 
         return $curator;
@@ -69,7 +68,6 @@ class CuratorMutations
         $updateData = [];
         
         if (isset($args['prompt'])) $updateData['prompt'] = $args['prompt'];
-        if (isset($args['schedule_type'])) $updateData['schedule_type'] = $args['schedule_type'];
         if (isset($args['auto_approve'])) $updateData['auto_approve'] = $args['auto_approve'];
         if (isset($args['confidence_threshold'])) $updateData['confidence_threshold'] = $args['confidence_threshold'];
 
