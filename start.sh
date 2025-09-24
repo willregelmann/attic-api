@@ -76,6 +76,30 @@ php artisan view:cache
 echo "Storage contents:"
 ls -la storage/app/public/images/collections/ || echo "No images found"
 
-# Start the Laravel server
-echo "Starting server on port ${PORT:-8000}..."
-php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
+# Create public symlink for storage access
+echo "Creating public storage symlink..."
+# Remove any existing symlink
+rm -rf public/storage
+# Create symlink directly to the storage/app/public directory
+ln -sfn /app/storage/app/public public/storage
+
+# List storage structure for debugging
+echo "Storage structure:"
+ls -la storage/
+ls -la storage/app/
+ls -la storage/app/public/ || echo "No public dir"
+ls -la public/ || echo "No public dir"
+ls -la public/storage/ || echo "No storage link"
+
+# Test if symlink works
+echo "Testing symlink access:"
+ls -la public/storage/images/collections/ 2>/dev/null || echo "Cannot access collections through symlink"
+
+# Check if Railway is using FrankenPHP
+if [ -f "/Caddyfile" ]; then
+    echo "FrankenPHP/Caddy detected - storage will be served through Laravel routes"
+else
+    # Start the Laravel server
+    echo "Starting Laravel server on port ${PORT:-8000}..."
+    php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
+fi
