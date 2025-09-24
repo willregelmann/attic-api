@@ -38,12 +38,10 @@ class CuratorMutations
 
         $curator = CollectionCurator::create([
             'collection_id' => $collection->id,
-            'name' => $args['name'],
-            'description' => $args['description'] ?? null,
+            'prompt' => $args['prompt'],
             'status' => 'inactive',
-            'curator_config' => $args['curator_config'],
             'schedule_type' => $args['schedule_type'] ?? 'manual',
-            'schedule_config' => $args['schedule_config'] ?? null,
+            'schedule_config' => null,
             'auto_approve' => $args['auto_approve'] ?? false,
             'confidence_threshold' => $args['confidence_threshold'] ?? 80,
         ]);
@@ -70,11 +68,8 @@ class CuratorMutations
 
         $updateData = [];
         
-        if (isset($args['name'])) $updateData['name'] = $args['name'];
-        if (isset($args['description'])) $updateData['description'] = $args['description'];
-        if (isset($args['curator_config'])) $updateData['curator_config'] = $args['curator_config'];
+        if (isset($args['prompt'])) $updateData['prompt'] = $args['prompt'];
         if (isset($args['schedule_type'])) $updateData['schedule_type'] = $args['schedule_type'];
-        if (isset($args['schedule_config'])) $updateData['schedule_config'] = $args['schedule_config'];
         if (isset($args['auto_approve'])) $updateData['auto_approve'] = $args['auto_approve'];
         if (isset($args['confidence_threshold'])) $updateData['confidence_threshold'] = $args['confidence_threshold'];
 

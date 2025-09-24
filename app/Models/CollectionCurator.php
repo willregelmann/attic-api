@@ -13,10 +13,8 @@ class CollectionCurator extends Model
 
     protected $fillable = [
         'collection_id',
-        'name',
-        'description',
+        'prompt',
         'status',
-        'curator_config',
         'schedule_type',
         'schedule_config',
         'last_run_at',
@@ -30,7 +28,6 @@ class CollectionCurator extends Model
     ];
 
     protected $casts = [
-        'curator_config' => 'array',
         'schedule_config' => 'array',
         'performance_metrics' => 'array',
         'auto_approve' => 'boolean',

@@ -333,9 +333,7 @@ type Mutation {
     # Create a curator for a collection
     createCurator(
         collection_id: ID! @rules(apply: ["required", "exists:items,id"])
-        name: String! @rules(apply: ["required", "string", "max:255"])
-        description: String
-        curator_config: JSON!
+        prompt: String! @rules(apply: ["required", "string"])
         schedule_type: String @rules(apply: ["in:manual,hourly,daily,weekly"])
         auto_approve: Boolean
         confidence_threshold: Int @rules(apply: ["min:0", "max:100"])
@@ -344,9 +342,7 @@ type Mutation {
     # Update curator configuration
     updateCurator(
         id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
-        name: String
-        description: String
-        curator_config: JSON
+        prompt: String
         schedule_type: String @rules(apply: ["in:manual,hourly,daily,weekly"])
         auto_approve: Boolean
         confidence_threshold: Int @rules(apply: ["min:0", "max:100"])
@@ -382,10 +378,8 @@ type CollectionCurator {
     id: ID!
     collection_id: ID!
     collection: Item!
-    name: String!
-    description: String
+    prompt: String!
     status: String!
-    curator_config: JSON!
     schedule_type: String!
     schedule_config: JSON
     last_run_at: DateTime

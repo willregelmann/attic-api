@@ -17,9 +17,9 @@ class CuratorService
 
     public function __construct()
     {
-        $this->apiKey = config('services.anthropic.key', '');
-        $this->apiUrl = config('services.anthropic.url', 'https://api.anthropic.com');
-        $this->defaultModel = config('services.anthropic.model', 'claude-3-sonnet-20240229');
+        $this->apiKey = config('services.anthropic.key') ?? '';
+        $this->apiUrl = config('services.anthropic.url') ?? 'https://api.anthropic.com';
+        $this->defaultModel = config('services.anthropic.model') ?? 'claude-3-sonnet-20240229';
     }
 
     /**
@@ -103,21 +103,18 @@ class CuratorService
      */
     protected function generateSuggestions(CollectionCurator $curator, Item $collection, array $existingItems): array
     {
-        $config = $curator->curator_config;
-        
         // Build the prompt
         $prompt = $this->buildPrompt($curator, $collection, $existingItems);
         
-        return $this->callAnthropicAPI($config, $prompt);
+        return $this->callAnthropicAPI($curator, $prompt);
     }
     
     /**
      * Call Anthropic's Claude API
      */
-    protected function callAnthropicAPI(array $config, string $prompt): array
+    protected function callAnthropicAPI(CollectionCurator $curator, string $prompt): array
     {
-        $systemPrompt = $config['personality'] ?? 'You are a helpful collection curator.';
-        $model = $config['ai_model'] ?? $this->defaultModel;
+        $systemPrompt = "You are an AI curator helping manage collections. Follow the user's instructions carefully. Always return your suggestions as JSON.";
         
         // Anthropic requires a different header format
         $response = Http::withHeaders([
@@ -125,9 +122,9 @@ class CuratorService
             'anthropic-version' => '2023-06-01',
             'content-type' => 'application/json',
         ])->post($this->apiUrl . '/v1/messages', [
-            'model' => $model,
+            'model' => $this->defaultModel,
             'max_tokens' => 2000,
-            'temperature' => $config['temperature'] ?? 0.7,
+            'temperature' => 0.7,
             'system' => $systemPrompt,
             'messages' => [
                 ['role' => 'user', 'content' => $prompt],
@@ -154,12 +151,10 @@ class CuratorService
      */
     protected function buildPrompt(CollectionCurator $curator, Item $collection, array $existingItems): string
     {
-        $config = $curator->curator_config;
-        
-        $prompt = "You are curating the collection: {$collection->name}\n\n";
+        $prompt = "Collection: {$collection->name}\n\n";
         
         if (!empty($collection->metadata['description'])) {
-            $prompt .= "Collection Description: {$collection->metadata['description']}\n\n";
+            $prompt .= "Description: {$collection->metadata['description']}\n\n";
         }
 
         $prompt .= "Current items in collection:\n";
@@ -171,12 +166,10 @@ class CuratorService
             $prompt .= "\n";
         }
 
-        $prompt .= "\nCuration Rules:\n";
-        foreach ($config['rules'] ?? [] as $rule) {
-            $prompt .= "- {$rule}\n";
-        }
+        // Add the curator's custom prompt
+        $prompt .= "\n{$curator->prompt}\n\n";
 
-        $prompt .= "\nPlease suggest items to add or remove from this collection. ";
+        $prompt .= "Based on the above instructions, suggest items to add or remove from this collection. ";
         $prompt .= "Return your response as a JSON object with an array of suggestions. ";
         $prompt .= "Each suggestion should have: action (add/remove), item_name, reason, confidence (0-100), and search_query (for finding the item).\n";
         $prompt .= "Example format: {\"suggestions\": [{\"action\": \"add\", \"item_name\": \"Item Name\", \"reason\": \"Why\", \"confidence\": 85, \"search_query\": \"search terms\"}]}";
