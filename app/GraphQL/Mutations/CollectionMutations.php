@@ -231,11 +231,13 @@ class CollectionMutations
             // Store the image
             $storage->put($path, $decodedImage, 'public');
             
-            // Generate public URL based on disk
+            // Generate public URL based on disk and environment
             if ($disk === 's3' || $disk === 'r2') {
                 $publicUrl = $storage->url($path);
             } else {
-                $publicUrl = \Illuminate\Support\Facades\Storage::url($path);
+                // For local/Railway storage, use the /storage route
+                $baseUrl = rtrim(config('app.url'), '/');
+                $publicUrl = $baseUrl . '/storage/' . $path;
             }
             
             // Create or update the image record

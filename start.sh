@@ -16,6 +16,9 @@ if [ -n "$RAILWAY_VOLUME_MOUNT_PATH" ]; then
     rm -rf storage/app
     ln -sf "$RAILWAY_VOLUME_MOUNT_PATH/app" storage/app
     
+    # Ensure permissions are correct
+    chmod -R 775 "$RAILWAY_VOLUME_MOUNT_PATH/app"
+    
     echo "Storage linked to Railway volume"
 else
     echo "No Railway volume detected, using local storage"
@@ -23,9 +26,8 @@ else
     mkdir -p storage/app/public/images/collections
 fi
 
-# Create public storage symlink
-echo "Creating public storage symlink..."
-php artisan storage:link --force
+# Note: We're not creating a public symlink anymore since we serve images through Laravel
+echo "Storage setup complete. Images will be served through Laravel routes."
 
 # Test database connection first
 echo "Testing database connection..."

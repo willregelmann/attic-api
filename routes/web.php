@@ -2,10 +2,30 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+// Serve storage images directly
+Route::get('/storage/{path}', function ($path) {
+    $fullPath = $path;
+    
+    // Check if file exists in storage
+    if (!Storage::disk('public')->exists($fullPath)) {
+        abort(404);
+    }
+    
+    // Get file content and mime type
+    $file = Storage::disk('public')->get($fullPath);
+    $mimeType = Storage::disk('public')->mimeType($fullPath);
+    
+    // Return file with appropriate headers
+    return response($file, 200)
+        ->header('Content-Type', $mimeType)
+        ->header('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+})->where('path', '.*');
 
 Route::get('/health', function () {
     $health = [
@@ -13,6 +33,7 @@ Route::get('/health', function () {
         'timestamp' => now()->toIso8601String(),
         'environment' => config('app.env'),
         'debug' => config('app.debug'),
+        'app_url' => config('app.url'),
     ];
 
     try {
@@ -22,6 +43,20 @@ Route::get('/health', function () {
         $health['status'] = 'error';
         $health['database'] = 'disconnected';
         $health['database_error'] = $e->getMessage();
+    }
+
+    // Check storage
+    try {
+        $testFile = 'test-' . uniqid() . '.txt';
+        Storage::disk('public')->put($testFile, 'test');
+        $exists = Storage::disk('public')->exists($testFile);
+        Storage::disk('public')->delete($testFile);
+        $health['storage'] = $exists ? 'working' : 'not working';
+        $health['storage_path'] = storage_path('app/public');
+        $health['railway_volume'] = env('RAILWAY_VOLUME_MOUNT_PATH', 'not set');
+    } catch (\Exception $e) {
+        $health['storage'] = 'error';
+        $health['storage_error'] = $e->getMessage();
     }
 
     return response()->json($health);
