@@ -169,7 +169,7 @@ class CollectionMutations
         return 'Item removed from collection successfully';
     }
     
-    public function setCollectionImage($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
+    public function uploadCollectionImage($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
     {
         $user = Auth::guard('sanctum')->user();
         $collection = Item::findOrFail($args['collection_id']);
@@ -189,30 +189,61 @@ class CollectionMutations
                 ->where('is_primary', true)
                 ->update(['is_primary' => false]);
             
-            // Store the image locally if it's an external URL
-            $imageUrl = $args['image_url'];
-            $imageService = new ImageStorageService();
-            $localUrl = $imageService->storeImageFromUrl($imageUrl, 'collection', $collection->name);
+            // Decode base64 image data
+            $imageData = $args['image_data'];
+            $filename = $args['filename'];
+            $mimeType = $args['mime_type'];
             
-            // Use local URL if successfully downloaded, otherwise use original URL
-            $finalUrl = $localUrl ?: $imageUrl;
+            // Remove base64 prefix if present
+            if (strpos($imageData, 'base64,') !== false) {
+                $imageData = substr($imageData, strpos($imageData, 'base64,') + 7);
+            }
+            
+            $decodedImage = base64_decode($imageData);
+            
+            // Validate it's actually an image
+            if (!in_array($mimeType, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'])) {
+                throw new \Exception('Invalid image type. Only JPEG, PNG, GIF, and WebP are allowed.');
+            }
+            
+            // Generate unique filename
+            $extension = match($mimeType) {
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/gif' => 'gif',
+                'image/webp' => 'webp',
+                default => 'jpg'
+            };
+            
+            $safeFilename = \Illuminate\Support\Str::slug($collection->name) . '-' . uniqid() . '.' . $extension;
+            $directory = 'public/images/collections';
+            $path = $directory . '/' . $safeFilename;
+            
+            // Ensure directory exists
+            if (!\Illuminate\Support\Facades\Storage::exists($directory)) {
+                \Illuminate\Support\Facades\Storage::makeDirectory($directory);
+            }
+            
+            // Store the image
+            \Illuminate\Support\Facades\Storage::put($path, $decodedImage);
+            
+            // Generate public URL
+            $publicUrl = \Illuminate\Support\Facades\Storage::url('images/collections/' . $safeFilename);
             
             // Create or update the image record
-            $image = ItemImage::updateOrCreate(
-                [
-                    'item_id' => $collection->id,
-                    'url' => $finalUrl,
-                ],
-                [
-                    'user_id' => $user->id,
-                    'alt_text' => $args['alt_text'] ?? $collection->name,
-                    'is_primary' => true,
-                    'metadata' => [
-                        'original_url' => $imageUrl,
-                        'uploaded_at' => now()->toIso8601String(),
-                    ]
+            $image = ItemImage::create([
+                'item_id' => $collection->id,
+                'user_id' => $user->id,
+                'url' => $publicUrl,
+                'alt_text' => $args['alt_text'] ?? $collection->name,
+                'is_primary' => true,
+                'metadata' => [
+                    'original_filename' => $filename,
+                    'mime_type' => $mimeType,
+                    'uploaded_at' => now()->toIso8601String(),
+                    'size' => strlen($decodedImage)
                 ]
-            );
+            ]);
             
             return $image;
         });

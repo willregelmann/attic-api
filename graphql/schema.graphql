@@ -306,10 +306,12 @@ type Mutation {
         item_id: ID! @rules(apply: ["required", "exists:items,id"])
     ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CollectionMutations@removeItemFromCollection")
     
-    # Set collection cover image
-    setCollectionImage(
+    # Upload collection cover image
+    uploadCollectionImage(
         collection_id: ID! @rules(apply: ["required", "exists:items,id"])
-        image_url: String! @rules(apply: ["required", "url"])
+        image_data: String! @rules(apply: ["required"])
+        filename: String! @rules(apply: ["required"])
+        mime_type: String! @rules(apply: ["required"])
         alt_text: String
-    ): ItemImage! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CollectionMutations@setCollectionImage")
+    ): ItemImage! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CollectionMutations@uploadCollectionImage")
 }
