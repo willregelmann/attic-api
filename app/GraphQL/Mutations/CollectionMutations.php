@@ -216,19 +216,27 @@ class CollectionMutations
             };
             
             $safeFilename = \Illuminate\Support\Str::slug($collection->name) . '-' . uniqid() . '.' . $extension;
-            $directory = 'public/images/collections';
+            $directory = 'images/collections';
             $path = $directory . '/' . $safeFilename;
             
+            // Determine storage disk based on environment
+            $disk = env('FILESYSTEM_DISK', 'public');
+            $storage = \Illuminate\Support\Facades\Storage::disk($disk);
+            
             // Ensure directory exists
-            if (!\Illuminate\Support\Facades\Storage::exists($directory)) {
-                \Illuminate\Support\Facades\Storage::makeDirectory($directory);
+            if (!$storage->exists($directory)) {
+                $storage->makeDirectory($directory);
             }
             
             // Store the image
-            \Illuminate\Support\Facades\Storage::put($path, $decodedImage);
+            $storage->put($path, $decodedImage, 'public');
             
-            // Generate public URL
-            $publicUrl = \Illuminate\Support\Facades\Storage::url('images/collections/' . $safeFilename);
+            // Generate public URL based on disk
+            if ($disk === 's3' || $disk === 'r2') {
+                $publicUrl = $storage->url($path);
+            } else {
+                $publicUrl = \Illuminate\Support\Facades\Storage::url($path);
+            }
             
             // Create or update the image record
             $image = ItemImage::create([
