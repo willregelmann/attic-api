@@ -11,15 +11,35 @@ if [ -n "$RAILWAY_VOLUME_MOUNT_PATH" ]; then
     
     # Create storage directories in the volume
     mkdir -p "$RAILWAY_VOLUME_MOUNT_PATH/app/public/images/collections"
+    echo "Created directories in volume"
+    
+    # Debug: Show what's in the volume
+    echo "Volume contents before linking:"
+    ls -la "$RAILWAY_VOLUME_MOUNT_PATH/" || echo "Cannot list volume root"
+    ls -la "$RAILWAY_VOLUME_MOUNT_PATH/app/" || echo "Cannot list volume app dir"
+    ls -la "$RAILWAY_VOLUME_MOUNT_PATH/app/public/" || echo "Cannot list volume public dir"
     
     # Remove existing storage/app directory and symlink to volume
+    echo "Creating symlink from storage/app to $RAILWAY_VOLUME_MOUNT_PATH/app"
     rm -rf storage/app
-    ln -sf "$RAILWAY_VOLUME_MOUNT_PATH/app" storage/app
+    ln -sfn "$RAILWAY_VOLUME_MOUNT_PATH/app" storage/app
+    
+    # Verify symlink was created
+    echo "Verifying symlink:"
+    ls -la storage/ | grep app
+    
+    # Test if we can write to the volume through the symlink
+    echo "Testing write access..."
+    touch storage/app/public/test-write.txt && echo "Write test successful" || echo "Write test failed"
     
     # Ensure permissions are correct
-    chmod -R 775 "$RAILWAY_VOLUME_MOUNT_PATH/app"
+    chmod -R 775 "$RAILWAY_VOLUME_MOUNT_PATH/app" 2>/dev/null || echo "Could not change permissions"
     
     echo "Storage linked to Railway volume"
+    
+    # List final contents
+    echo "Final storage contents:"
+    ls -la storage/app/public/images/collections/ 2>/dev/null || echo "Collections directory not accessible"
 else
     echo "No Railway volume detected, using local storage"
     # Ensure local storage directories exist
