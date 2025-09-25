@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\CollectionCurator;
-use App\Services\CuratorService;
+use App\Services\CuratorMessageBusService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -12,12 +12,12 @@ class RunScheduledCurators extends Command
     protected $signature = 'curators:run-scheduled';
     protected $description = 'Run all scheduled curators that are due';
 
-    protected CuratorService $curatorService;
+    protected CuratorMessageBusService $messageBus;
 
-    public function __construct(CuratorService $curatorService)
+    public function __construct(CuratorMessageBusService $messageBus)
     {
         parent::__construct();
-        $this->curatorService = $curatorService;
+        $this->messageBus = $messageBus;
     }
 
     public function handle(): int
@@ -43,8 +43,8 @@ class RunScheduledCurators extends Command
             try {
                 $this->info("Running curator: {$curator->name} (ID: {$curator->id})");
                 
-                // Queue the curator run
-                $this->curatorService->queueCuratorRun($curator);
+                // Send run command to curator service via message bus
+                $this->messageBus->runCurator($curator);
                 
                 // Update next run time
                 $curator->update([

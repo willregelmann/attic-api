@@ -35,12 +35,6 @@ return [
         ],
     ],
 
-    'anthropic' => [
-        'key' => env('ANTHROPIC_API_KEY'),
-        'url' => env('ANTHROPIC_API_URL', 'https://api.anthropic.com'),
-        'model' => env('ANTHROPIC_MODEL', 'claude-3-haiku-20240307'),
-    ],
-    
     'curator' => [
         'shared_secret' => env('CURATOR_SHARED_SECRET', 'change-in-production'),
         'service_url' => env('CURATOR_SERVICE_URL'),

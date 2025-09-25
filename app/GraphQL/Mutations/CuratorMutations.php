@@ -5,7 +5,6 @@ namespace App\GraphQL\Mutations;
 use App\Models\CollectionCurator;
 use App\Models\CuratorSuggestion;
 use App\Models\Item;
-use App\Services\CuratorService;
 use App\Services\CuratorMessageBusService;
 use Illuminate\Support\Facades\Auth;
 use GraphQL\Type\Definition\ResolveInfo;
@@ -13,12 +12,10 @@ use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 class CuratorMutations
 {
-    protected CuratorService $curatorService;
     protected CuratorMessageBusService $messageBus;
 
-    public function __construct(CuratorService $curatorService, CuratorMessageBusService $messageBus)
+    public function __construct(CuratorMessageBusService $messageBus)
     {
-        $this->curatorService = $curatorService;
         $this->messageBus = $messageBus;
     }
 

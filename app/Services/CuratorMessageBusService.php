@@ -49,7 +49,7 @@ class CuratorMessageBusService
                 'collection_id' => $curator->collection_id,
                 'prompt' => $curator->prompt,
                 'schedule' => $curator->schedule,
-                'model' => config('services.anthropic.model', 'claude-3-haiku-20240307'),
+                'model' => 'claude-3-haiku-20240307',
                 'auto_approve' => $curator->auto_approve,
                 'confidence_threshold' => $curator->confidence_threshold
             ]
