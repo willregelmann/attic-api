@@ -1,0 +1,19 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+numReplicas = 1
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[[services]]
+name = "web"
+startCommand = "bash start-web.sh"
+
+[[services]]
+name = "worker"
+startCommand = "php artisan queue:work --sleep=3 --tries=3 --timeout=90 --verbose"
+
+[[services]]
+name = "scheduler"
+startCommand = "bash start-scheduler.sh"
