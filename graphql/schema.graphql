@@ -328,6 +328,20 @@ type Mutation {
         alt_text: String
     ): ItemImage! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CollectionMutations@uploadCollectionImage")
     
+    # ===== API TOKEN MANAGEMENT (Auth required) =====
+    
+    # Create a new API token
+    createApiToken(
+        name: String! @rules(apply: ["required", "string", "max:255"])
+        abilities: [String!]
+        expires_at: DateTime
+    ): ApiTokenPayload! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\ApiTokenMutations@createToken")
+    
+    # Revoke an API token
+    revokeApiToken(
+        id: ID! @rules(apply: ["required", "exists:api_tokens,id"])
+    ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\ApiTokenMutations@revokeToken")
+    
     # ===== CURATOR MANAGEMENT (Auth required) =====
     
     # Create a curator for a collection
@@ -368,6 +382,22 @@ type Mutation {
     deleteCurator(
         id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
     ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@deleteCurator")
+}
+
+# ===== API TOKEN TYPES =====
+
+type ApiToken {
+    id: ID!
+    name: String!
+    abilities: [String!]
+    last_used_at: DateTime
+    expires_at: DateTime
+    created_at: DateTime!
+}
+
+type ApiTokenPayload {
+    token: ApiToken!
+    plainTextToken: String!
 }
 
 # ===== CURATOR TYPES =====

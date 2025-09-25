@@ -15,9 +15,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->statefulApi();
         $middleware->api(prepend: [
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            \App\Http\Middleware\AuthenticateWithApiToken::class,
         ]);
         $middleware->alias([
             'cors' => \Illuminate\Http\Middleware\HandleCors::class,
+            'auth.api-token' => \App\Http\Middleware\AuthenticateWithApiToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -74,6 +74,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Get API tokens belonging to this user
+     */
+    public function apiTokens()
+    {
+        return $this->hasMany(ApiToken::class);
+    }
+
+    /**
      * Get images uploaded by this user
      */
     public function uploadedImages()
