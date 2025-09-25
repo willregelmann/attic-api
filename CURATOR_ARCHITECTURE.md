@@ -1,377 +1,245 @@
-# AI Curator Architecture
+# Will's Attic - Curator Agent Architecture
 
 ## Overview
 
-The AI Curator system allows collections to be automatically maintained by AI agents that can suggest additions, removals, and reorganizations based on configurable rules and preferences.
+The curator system uses autonomous AI agents that interact with the Attic API as special users. Curators have their own API tokens and operate independently from the main application.
 
-## Architecture Decision
+## Architecture Components
 
-We chose a **hybrid architecture** with the core system in Laravel and background processing via queue workers:
+### 1. Main API Service (Laravel)
+- Creates curator user accounts
+- Generates API tokens for curators
+- Sends commands via Redis pub/sub
+- Never stores curator tokens
 
-### Why Not a Separate Microservice (Yet)?
+### 2. Curator Service (Node.js/LangChain)
+- Runs AI agents using Anthropic Claude
+- Maintains its own SQLite database for tokens
+- Receives commands via Redis pub/sub
+- Executes curation tasks autonomously
 
-1. **Simplicity**: For a hobby project, keeping everything in one codebase is easier to maintain
-2. **Shared Models**: Direct access to Laravel models and database
-3. **Queue Isolation**: Laravel's queue system provides sufficient isolation
-4. **Easy Scaling**: Can move to separate service later if needed
+### 3. Message Bus (Redis)
+- Secure service-to-service communication
+- HMAC-signed messages with timestamps
+- Commands: register, run, update, delete
+- Events: status updates, completion notifications
 
-### Current Architecture
+## Security Model
 
 ```
-Web Requests → Laravel API → Queue Job → Curator Service → AI API
-                    ↓             ↓              ↓
-                PostgreSQL   Redis Queue    OpenAI/Claude
+User → Creates Curator → Main API → Generates Token → Message Bus → Curator Service
+                            ↓                                           ↓
+                        No Token Stored                          Token Encrypted & Stored
 ```
 
-## Database Schema
+### Key Security Features:
+- **Token Isolation**: API tokens never stored in main database
+- **Encrypted Storage**: Tokens encrypted in curator service database
+- **Signed Messages**: All inter-service messages are HMAC-signed
+- **Time-bound Messages**: 60-second validity window prevents replay attacks
+- **Service Secret**: Shared secret for service authentication
 
-### Tables
-
-1. **collection_curators**: Stores curator configurations
-   - Personality and behavior rules
-   - Schedule settings
-   - Auto-approval thresholds
-   - Performance metrics
-
-2. **curator_suggestions**: Individual suggestions made by curators
-   - Action type (add/remove/reorder)
-   - Confidence scores
-   - Review status and notes
-   - Execution tracking
-
-3. **curator_run_logs**: Audit trail of curator executions
-   - Run status and timing
-   - API usage metrics
-   - Error tracking
-
-## Key Components
-
-### 1. CuratorService (`app/Services/CuratorService.php`)
-
-Core service handling:
-- AI prompt generation
-- Suggestion creation
-- API communication
-- Suggestion validation
-
-### 2. ProcessCuratorRun Job (`app/Jobs/ProcessCuratorRun.php`)
-
-Background job that:
-- Executes curator logic
-- Handles retries
-- Updates metrics
-- Logs failures
-
-### 3. RunScheduledCurators Command (`app/Console/Commands/RunScheduledCurators.php`)
-
-Scheduled command that:
-- Checks for due curators
-- Queues curator runs
-- Updates schedules
-
-### 4. GraphQL Mutations (`app/GraphQL/Mutations/CuratorMutations.php`)
-
-API endpoints for:
-- Creating/updating curators
-- Reviewing suggestions
-- Manual curator runs
-- Bulk operations
-
-## Configuration
-
-### Curator Config Structure
-
-```json
-{
-  "personality": "A knowledgeable Pokemon card expert",
-  "rules": [
-    "Only include cards from Standard format",
-    "Maximum 2 copies of any card"
-  ],
-  "preferences": {
-    "rarity_weight": 0.3,
-    "meta_relevance_weight": 0.7,
-    "price_ceiling": 50.00
-  },
-  "search_queries": [
-    "Pokemon TCG tournament winners"
-  ],
-  "ai_model": "claude-3-opus-20240229",
-  "temperature": 0.7
-}
-```
-
-### Environment Variables
-
-The system supports both Anthropic Claude and OpenAI GPT models.
-
-#### Option 1: Anthropic Claude (Recommended)
-
-```env
-# Choose AI provider
-AI_PROVIDER=anthropic
-
-# Anthropic API settings
-ANTHROPIC_API_KEY=your-anthropic-api-key
-ANTHROPIC_MODEL=claude-3-opus-20240229
-
-# Available Claude models:
-# - claude-3-opus-20240229 (Most capable, best for complex curation)
-# - claude-3-sonnet-20240229 (Balanced performance/cost)
-# - claude-3-haiku-20240307 (Fastest, lowest cost)
-```
-
-#### Option 2: OpenAI GPT
-
-```env
-# Choose AI provider
-AI_PROVIDER=openai
-
-# OpenAI API settings
-OPENAI_API_KEY=your-openai-api-key
-OPENAI_MODEL=gpt-4
-
-# Available models:
-# - gpt-4 (Most capable)
-# - gpt-4-turbo (Faster, cheaper)
-# - gpt-3.5-turbo (Fastest, cheapest)
-```
-
-### Why Anthropic Claude?
-
-Claude is particularly well-suited for collection curation because:
-- **Better instruction following**: More reliable at following complex curation rules
-- **Thoughtful analysis**: Provides nuanced reasoning for suggestions
-- **Safety-first**: Less likely to suggest inappropriate content
-- **JSON handling**: Reliable structured output without special formatting modes
-
-## Workflow
+## Data Flow
 
 ### 1. Curator Creation
-```
-User → Create Curator → Set Rules/Personality → Configure Schedule
-```
-
-### 2. Suggestion Generation
-```
-Scheduled/Manual Trigger → Queue Job → Call AI API → Parse Response → Create Suggestions
-```
-
-### 3. Review Process
-```
-Suggestions Created → Notification (optional) → Human Review → Approve/Reject → Execute
-```
-
-### 4. Auto-Approval Flow
-```
-High Confidence Suggestion → Auto-Approve → Queue Execution → Update Collection
-```
-
-## Queue Configuration
-
-### Running Queue Workers
-
-```bash
-# Development
-php artisan queue:work --queue=curators,default
-
-# Production (with supervisor)
-php artisan queue:work --queue=curators --tries=3 --timeout=300
-```
-
-### Supervisor Configuration (Production)
-
-```ini
-[program:curator-worker]
-process_name=%(program_name)s_%(process_num)02d
-command=php /path/to/artisan queue:work --queue=curators --tries=3 --timeout=300
-autostart=true
-autorestart=true
-numprocs=2
-```
-
-## Scheduling
-
-The system runs scheduled curators every 15 minutes:
-
-```php
-// routes/console.php
-Schedule::command('curators:run-scheduled')->everyFifteenMinutes();
-```
-
-For Railway deployment, add to your start script:
-```bash
-# Run Laravel scheduler in background
-while true; do php artisan schedule:run >> /dev/null 2>&1; sleep 60; done &
-```
-
-## API Usage Examples
-
-### Create a Curator
-
-```graphql
+```javascript
+// User creates curator in UI
 mutation CreateCurator {
-  createCurator(
-    collection_id: "uuid-here"
-    name: "Pokemon Meta Curator"
-    description: "Maintains competitive Pokemon cards"
-    curator_config: {
-      personality: "Expert in Pokemon TCG competitive play"
-      rules: ["Focus on tournament-legal cards", "Max budget $500"]
-      ai_model: "gpt-4"
-      temperature: 0.7
-    }
-    schedule_type: "daily"
-    auto_approve: false
-    confidence_threshold: 85
+  createCuratorUser(
+    name: "Professor Oak"
+    collection_id: "pokemon-tcg-id"
+    prompt: "Manage Pokemon TCG collection"
   ) {
-    id
-    name
-    status
+    curator { id, name }
+    // No token returned to user!
   }
 }
+
+// Main API internally:
+1. Creates curator user account
+2. Generates API token
+3. Sends to curator service via Redis:
+   {
+     type: 'register_curator',
+     curator_id: '...',
+     api_token: 'secret_token',
+     config: { ... }
+   }
+4. Token is never stored in main DB
+
+// Curator Service:
+1. Receives message
+2. Verifies HMAC signature
+3. Encrypts and stores token
+4. Activates AI agent
 ```
 
-### Review Suggestions
-
-```graphql
-mutation ReviewSuggestion {
-  reviewSuggestion(
-    id: "suggestion-uuid"
-    action: "approve"
-    notes: "Good suggestion"
-    execute_now: true
-  ) {
-    id
-    status
-    executed
-  }
-}
-```
-
-### Manual Curator Run
-
-```graphql
+### 2. Manual Curator Run
+```javascript
+// User triggers run
 mutation RunCurator {
-  runCurator(id: "curator-uuid") {
+  runCurator(id: "curator-id") {
     success
     message
   }
 }
+
+// Message flow:
+Main API → Redis → Curator Service → Execute Agent → Redis → Main API
 ```
 
-## Security Considerations
+## Database Schema
 
-1. **API Key Protection**: Store OpenAI keys in environment variables only
-2. **Permission Checks**: Only collection maintainers can manage curators
-3. **Rate Limiting**: Implement API rate limiting to prevent abuse
-4. **Cost Controls**: Monitor API usage and set limits
-5. **Confidence Thresholds**: Require human review for low-confidence suggestions
+### Main API Database (PostgreSQL)
+```sql
+-- Users table (extended)
+users
+  - id (UUID)
+  - user_type ('human' | 'curator')
+  - curator_owner_id (references users)
+  - curator_config (JSON)
 
-## Performance Optimization
+-- Collection curators
+collection_curators
+  - id
+  - collection_id
+  - curator_user_id
+  - prompt
+  - schedule
+  - status
+```
 
-1. **Queue Priority**: Use separate queue for curator jobs
-2. **Caching**: Cache collection data during runs
-3. **Batch Processing**: Process multiple suggestions in single API calls
-4. **Timeout Settings**: Set appropriate timeouts for API calls
+### Curator Service Database (SQLite)
+```sql
+-- Secure token storage
+curator_tokens
+  - curator_id (PRIMARY KEY)
+  - api_token (ENCRYPTED)
+  - created_at
+  - last_used_at
+  - is_active
+
+-- Run history
+curator_runs
+  - id
+  - curator_id
+  - started_at
+  - completed_at
+  - status
+  - output
+  - suggestions_made
+
+-- Configuration cache
+curator_configs
+  - curator_id
+  - name
+  - collection_id
+  - prompt
+  - schedule
+  - model
+```
+
+## Message Bus Protocol
+
+### Message Structure
+```javascript
+{
+  data: {
+    type: 'command_type',
+    curator_id: '...',
+    // command-specific data
+  },
+  timestamp: 1234567890,
+  signature: 'hmac_sha256_signature'
+}
+```
+
+### Commands
+- `register_curator`: Create new curator with token
+- `run_curator`: Execute curator task
+- `update_curator`: Update configuration
+- `delete_curator`: Remove curator
+
+### Events
+- `curator_registered`: Confirmation of registration
+- `curator_run_complete`: Task completion with results
+- `curator_error`: Error notifications
+
+## Deployment
+
+### Railway Services Setup
+
+#### 1. Main API Service
+```env
+REDIS_URL=redis://...
+CURATOR_SHARED_SECRET=secure-random-string
+```
+
+#### 2. Curator Service
+```env
+# Redis for messaging
+REDIS_URL=redis://...
+CURATOR_SHARED_SECRET=secure-random-string
+
+# AI Configuration
+ANTHROPIC_API_KEY=sk-ant-...
+ATTIC_API_URL=https://api.railway.app/graphql
+
+# Security
+ENCRYPTION_KEY=32-char-key-for-token-encryption
+
+# Database
+DATABASE_PATH=/data/curator.db
+```
+
+#### 3. Redis Service
+- Shared Redis instance for pub/sub
+- No persistence needed (messages are transient)
 
 ## Monitoring
 
-### Key Metrics to Track
+### Health Endpoints
+```bash
+# Curator Service Health
+GET /health
+{
+  "status": "healthy",
+  "curators": ["curator-1", "curator-2"],
+  "database": "connected",
+  "redis": "connected"
+}
 
-- Curator run frequency and duration
-- Suggestion approval rates
-- API costs per curator
-- Error rates and types
-- Queue depth and processing time
+# Run History
+GET /curators/:id/history
+[
+  {
+    "run_id": "...",
+    "started_at": "...",
+    "status": "completed",
+    "suggestions_made": 5
+  }
+]
+```
 
 ### Logging
+- All commands logged with timestamps
+- Run outputs stored in curator service DB
+- Errors tracked with full stack traces
 
-```php
-// Curator runs logged to:
-storage/logs/curator-runs.log
+## Benefits
 
-// Failed jobs tracked in:
-failed_jobs table
-```
+1. **Security**: Tokens never exposed or stored in main DB
+2. **Scalability**: Curator service can scale independently
+3. **Reliability**: Service isolation prevents cascading failures
+4. **Flexibility**: Easy to add new AI models or strategies
+5. **Auditability**: Complete history in curator service
+6. **Maintainability**: Clean separation of concerns
 
 ## Future Enhancements
 
-1. **Multiple AI Providers**: Support for Claude, Gemini, local models
-2. **Webhook Notifications**: Alert maintainers of new suggestions
-3. **Learning System**: Curators learn from approval/rejection patterns
-4. **Collaborative Filtering**: Curators learn from similar collections
-5. **Cost Optimization**: Intelligent caching and batching
-6. **Separate Microservice**: Move to dedicated Python/Node service for scale
-
-## Testing
-
-### Unit Tests
-```bash
-php artisan test --filter CuratorTest
-```
-
-### Manual Testing
-1. Create test collection
-2. Configure curator with low auto-approve threshold
-3. Run curator manually: `php artisan curators:run-scheduled`
-4. Check suggestions in database
-5. Review via GraphQL mutations
-
-## Troubleshooting
-
-### Common Issues
-
-1. **No suggestions generated**
-   - Check OpenAI API key is set
-   - Verify curator config is valid JSON
-   - Check logs for API errors
-
-2. **Jobs not processing**
-   - Ensure queue worker is running
-   - Check failed_jobs table
-   - Verify Redis connection
-
-3. **Scheduled runs not happening**
-   - Check scheduler is running (`cron` or `while` loop)
-   - Verify curator status is 'active'
-   - Check next_run_at timestamp
-
-## Cost Estimation
-
-### Anthropic Claude API Costs
-**Claude 3 Opus** (Best quality):
-- Input: $15 per million tokens (~$0.015 per 1K)
-- Output: $75 per million tokens (~$0.075 per 1K)
-- Average curator run: ~2K tokens = ~$0.09
-
-**Claude 3 Sonnet** (Balanced):
-- Input: $3 per million tokens (~$0.003 per 1K)
-- Output: $15 per million tokens (~$0.015 per 1K)
-- Average curator run: ~2K tokens = ~$0.018
-
-**Claude 3 Haiku** (Budget):
-- Input: $0.25 per million tokens (~$0.00025 per 1K)
-- Output: $1.25 per million tokens (~$0.00125 per 1K)
-- Average curator run: ~2K tokens = ~$0.0015
-
-### OpenAI API Costs
-**GPT-4**:
-- Input: ~$0.03 per 1K tokens
-- Output: ~$0.06 per 1K tokens
-- Average curator run: ~2K tokens = ~$0.12
-
-**GPT-3.5-turbo** (Budget):
-- Input: ~$0.001 per 1K tokens
-- Output: ~$0.002 per 1K tokens
-- Average curator run: ~2K tokens = ~$0.004
-
-### Monthly Cost Comparison
-For 10 collections with daily runs (300 runs/month):
-- **Claude 3 Opus**: ~$27/month
-- **Claude 3 Sonnet**: ~$5.40/month (Recommended for most use cases)
-- **Claude 3 Haiku**: ~$0.45/month
-- **GPT-4**: ~$36/month
-- **GPT-3.5-turbo**: ~$1.20/month
-
-**Recommendation**: Start with Claude 3 Sonnet for the best balance of quality and cost.
+- [ ] Webhook support for external triggers
+- [ ] Multiple AI model support (GPT-4, Claude, etc.)
+- [ ] Curator collaboration (multiple curators per collection)
+- [ ] Advanced scheduling (cron expressions)
+- [ ] Web UI for curator service monitoring
+- [ ] Backup/restore for curator database
