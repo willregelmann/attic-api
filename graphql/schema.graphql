@@ -371,6 +371,7 @@ type Mutation {
     # Manually run curator
     runCurator(
         id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
+        message: String @rules(apply: ["string", "max:2000"])
     ): CuratorRunResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@runCurator")
     
     # Review a suggestion
@@ -381,10 +382,33 @@ type Mutation {
         execute_now: Boolean
     ): CuratorSuggestion! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@reviewSuggestion")
     
+    # Review multiple suggestions at once
+    reviewMultipleSuggestions(
+        ids: [ID!]! @rules(apply: ["required"])
+        action: String! @rules(apply: ["required", "in:approve,reject"])
+        notes: String
+    ): BatchReviewResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@reviewMultipleSuggestions")
+    
+    # Create a curator suggestion (for AI curator tools)
+    createCuratorSuggestion(
+        curator_id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
+        collection_id: ID! @rules(apply: ["required", "exists:items,id"])
+        action_type: String! @rules(apply: ["required", "in:add_item,remove_item,update_item,add_subcollection"])
+        suggestion_data: JSON!
+        reasoning: String!
+        confidence_score: Int @rules(apply: ["min:0", "max:100"])
+    ): CuratorSuggestion! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@createCuratorSuggestion")
+    
     # Delete a curator
     deleteCurator(
         id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
     ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@deleteCurator")
+    
+    # Execute approved suggestions
+    executeApprovedSuggestions(
+        collection_id: ID! @rules(apply: ["required", "exists:items,id"])
+        limit: Int
+    ): ExecutionResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@executeApprovedSuggestions")
 }
 
 # ===== API TOKEN TYPES =====
@@ -456,4 +480,18 @@ type CuratorRunResult {
     success: Boolean!
     message: String!
     curator: CollectionCurator
+}
+
+type BatchReviewResult {
+    success: Boolean!
+    approved: Int!
+    rejected: Int!
+    message: String
+}
+
+type ExecutionResult {
+    success: Boolean!
+    executed: Int!
+    failed: Int!
+    message: String
 }

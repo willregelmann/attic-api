@@ -45,6 +45,9 @@ class CuratorMutations
             'next_run_at' => now()->addDay(), // First run will be tomorrow
         ]);
 
+        // Register the curator with the curator service
+        $this->messageBus->registerCurator($user, $curator);
+
         return $curator;
     }
 
@@ -128,12 +131,13 @@ class CuratorMutations
             $curator->update(['status' => 'active']);
         }
 
-        // Send run command to curator service via message bus
-        $this->messageBus->runCurator($curator);
+        // Send run command to curator service via message bus with optional task message
+        $taskMessage = $args['message'] ?? null;
+        $this->messageBus->runCurator($curator, $taskMessage);
 
         return [
             'success' => true,
-            'message' => 'Curator run has been queued',
+            'message' => 'Curator run has been queued' . ($taskMessage ? ' with custom instructions' : ''),
             'curator' => $curator,
         ];
     }
@@ -173,6 +177,63 @@ class CuratorMutations
         return $suggestion;
     }
 
+    /**
+     * Review multiple suggestions at once
+     */
+    public function reviewMultipleSuggestions($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
+    {
+        $user = Auth::guard('sanctum')->user();
+        
+        // Get all suggestions to check permissions
+        $suggestions = CuratorSuggestion::whereIn('id', $args['ids'])->get();
+        
+        if ($suggestions->isEmpty()) {
+            return [
+                'success' => false,
+                'approved' => 0,
+                'rejected' => 0,
+                'message' => 'No valid suggestions found'
+            ];
+        }
+        
+        // Verify user has permission for all collections
+        $collectionIds = $suggestions->pluck('collection_id')->unique();
+        foreach ($collectionIds as $collectionId) {
+            $isMaintainer = Item::find($collectionId)->maintainers()
+                ->where('user_id', $user->id)
+                ->exists();
+                
+            if (!$isMaintainer) {
+                throw new \Exception('You must be a collection maintainer to review suggestions');
+            }
+        }
+        
+        // Review each suggestion
+        $approved = 0;
+        $rejected = 0;
+        
+        foreach ($suggestions as $suggestion) {
+            if (!$suggestion->isPending()) {
+                continue;
+            }
+            
+            if ($args['action'] === 'approve') {
+                $suggestion->approve($user, $args['notes'] ?? null);
+                $approved++;
+            } else {
+                $suggestion->reject($user, $args['notes'] ?? null);
+                $rejected++;
+            }
+        }
+        
+        return [
+            'success' => true,
+            'approved' => $approved,
+            'rejected' => $rejected,
+            'message' => "Successfully reviewed {$approved} approved, {$rejected} rejected"
+        ];
+    }
+    
     /**
      * Bulk review suggestions
      */
@@ -219,6 +280,77 @@ class CuratorMutations
         ];
     }
 
+    /**
+     * Create a curator suggestion (for AI curator tools)
+     */
+    public function createCuratorSuggestion($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
+    {
+        $user = Auth::guard('sanctum')->user();
+        $curator = CollectionCurator::findOrFail($args['curator_id']);
+        
+        // Verify the user has curator access (this would typically be the curator agent's token)
+        // For now, we'll allow any authenticated user to create suggestions
+        
+        $suggestion = CuratorSuggestion::create([
+            'curator_id' => $curator->id,
+            'collection_id' => $args['collection_id'],
+            'action_type' => $args['action_type'],
+            'suggestion_data' => $args['suggestion_data'],
+            'reasoning' => $args['reasoning'],
+            'confidence_score' => $args['confidence_score'] ?? 80,
+            'status' => 'pending'
+        ]);
+
+        return $suggestion;
+    }
+
+    /**
+     * Execute approved suggestions for a collection
+     */
+    public function executeApprovedSuggestions($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
+    {
+        $user = Auth::guard('sanctum')->user();
+        $collection = Item::findOrFail($args['collection_id']);
+        
+        // Check permissions
+        $isMaintainer = $collection->maintainers()
+            ->where('user_id', $user->id)
+            ->exists();
+            
+        if (!$isMaintainer) {
+            throw new \Exception('You must be a collection maintainer to execute suggestions');
+        }
+        
+        // Get approved but not executed suggestions
+        $query = CuratorSuggestion::where('collection_id', $collection->id)
+            ->where('status', 'approved')
+            ->where('executed', false);
+        
+        if (isset($args['limit'])) {
+            $query->limit($args['limit']);
+        }
+        
+        $suggestions = $query->get();
+        
+        $executed = 0;
+        $failed = 0;
+        
+        foreach ($suggestions as $suggestion) {
+            if ($suggestion->execute()) {
+                $executed++;
+            } else {
+                $failed++;
+            }
+        }
+        
+        return [
+            'success' => true,
+            'executed' => $executed,
+            'failed' => $failed,
+            'message' => "Executed {$executed} suggestions, {$failed} failed"
+        ];
+    }
+    
     /**
      * Delete a curator
      */

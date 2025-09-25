@@ -64,11 +64,19 @@ class CuratorMessageBusService
      */
     public function runCurator(CollectionCurator $curator, ?string $task = null): void
     {
-        $this->sendCommand('run_curator', [
+        $data = [
             'curator_id' => $curator->id,
             'task' => $task,
-            'strategy' => $task ? 'specific' : 'default'
-        ]);
+            'strategy' => 'default'
+        ];
+        
+        // If a custom task message is provided, append it to the prompt
+        if ($task) {
+            $data['additional_instructions'] = $task;
+            $data['strategy'] = 'custom';
+        }
+        
+        $this->sendCommand('run_curator', $data);
     }
     
     /**
@@ -107,8 +115,11 @@ class CuratorMessageBusService
             'id' => \Illuminate\Support\Str::uuid()->toString()
         ]);
         
+        // Sort keys to ensure consistent ordering
+        ksort($messageData);
+        
         $timestamp = now()->timestamp * 1000; // milliseconds
-        $payload = json_encode($messageData) . $timestamp;
+        $payload = json_encode($messageData, JSON_UNESCAPED_SLASHES) . $timestamp;
         
         $signature = hash_hmac('sha256', $payload, $this->sharedSecret);
         
