@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
 class ApiToken extends Model
 {
-    use \App\Models\Concerns\UsesUuid;
+    use HasUuids;
 
     /**
      * The attributes that are mass assignable.
