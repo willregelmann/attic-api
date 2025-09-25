@@ -207,6 +207,9 @@ type Query {
 
     # User's favorite collections
     myFavoriteCollections: [CollectionWithStats!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyFavoriteCollections")
+    
+    # User's API tokens
+    myApiTokens: [ApiToken!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyApiTokens")
 
     # User's items in a specific collection
     myCollectionItems(

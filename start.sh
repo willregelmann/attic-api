@@ -71,6 +71,7 @@ echo "Optimizing for production..."
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
+php artisan lighthouse:clear-cache
 
 # List storage contents for debugging
 echo "Storage contents:"
