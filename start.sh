@@ -96,20 +96,21 @@ ls -la public/storage/ || echo "No storage link"
 echo "Testing symlink access:"
 ls -la public/storage/images/collections/ 2>/dev/null || echo "Cannot access collections through symlink"
 
+# Start the queue worker in the background
+echo "Starting queue worker..."
+php artisan queue:work --sleep=3 --tries=3 --timeout=90 --verbose 2>&1 | while read line; do echo "[QUEUE] $line"; done &
+QUEUE_PID=$!
+echo "Queue worker started with PID: $QUEUE_PID"
+
 # Start the scheduler in the background
 echo "Starting Laravel scheduler..."
 while true; do
-    php artisan schedule:run --verbose --no-interaction
+    echo "[SCHEDULER] Running scheduled tasks at $(date)..."
+    php artisan schedule:run --verbose --no-interaction 2>&1 | while read line; do echo "[SCHEDULER] $line"; done
     sleep 60
 done &
 SCHEDULER_PID=$!
 echo "Scheduler started with PID: $SCHEDULER_PID"
-
-# Start the queue worker in the background
-echo "Starting queue worker..."
-php artisan queue:work --sleep=3 --tries=3 --timeout=90 &
-QUEUE_PID=$!
-echo "Queue worker started with PID: $QUEUE_PID"
 
 # Function to cleanup background processes
 cleanup() {
@@ -125,9 +126,33 @@ trap cleanup EXIT INT TERM
 # Check if Railway is using FrankenPHP
 if [ -f "/Caddyfile" ]; then
     echo "FrankenPHP/Caddy detected - storage will be served through Laravel routes"
-    # Keep the script running since FrankenPHP handles the web server
-    echo "Background services running. Press Ctrl+C to stop."
-    wait
+    echo "Background services (queue worker and scheduler) are running"
+    echo "Monitoring services..."
+    
+    # Monitor background processes and restart if they die
+    while true; do
+        # Check if queue worker is still running
+        if ! kill -0 $QUEUE_PID 2>/dev/null; then
+            echo "Queue worker died, restarting..."
+            php artisan queue:work --sleep=3 --tries=3 --timeout=90 --verbose 2>&1 | while read line; do echo "[QUEUE] $line"; done &
+            QUEUE_PID=$!
+            echo "Queue worker restarted with PID: $QUEUE_PID"
+        fi
+        
+        # Check if scheduler is still running
+        if ! kill -0 $SCHEDULER_PID 2>/dev/null; then
+            echo "Scheduler died, restarting..."
+            while true; do
+                echo "[SCHEDULER] Running scheduled tasks at $(date)..."
+                php artisan schedule:run --verbose --no-interaction 2>&1 | while read line; do echo "[SCHEDULER] $line"; done
+                sleep 60
+            done &
+            SCHEDULER_PID=$!
+            echo "Scheduler restarted with PID: $SCHEDULER_PID"
+        fi
+        
+        sleep 10
+    done
 else
     # Start the Laravel server
     echo "Starting Laravel server on port ${PORT:-8000}..."
