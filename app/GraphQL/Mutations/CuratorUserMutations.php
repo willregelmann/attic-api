@@ -5,12 +5,19 @@ namespace App\GraphQL\Mutations;
 use App\Models\User;
 use App\Models\ApiToken;
 use App\Models\CollectionCurator;
+use App\Services\CuratorMessageBusService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class CuratorUserMutations
 {
+    protected CuratorMessageBusService $messageBus;
+    
+    public function __construct(CuratorMessageBusService $messageBus)
+    {
+        $this->messageBus = $messageBus;
+    }
     /**
      * Create a curator user for a collection
      */
@@ -42,14 +49,6 @@ class CuratorUserMutations
             ],
         ]);
 
-        // Create an API token for the curator
-        $tokenResult = ApiToken::createTokenForUser(
-            $curatorUser,
-            'Curator Access Token',
-            ['curator:read', 'curator:suggest'], // Limited permissions
-            null // No expiration
-        );
-
         // Create or update the collection curator record
         $collectionCurator = CollectionCurator::updateOrCreate(
             ['collection_id' => $args['collection_id']],
@@ -62,10 +61,14 @@ class CuratorUserMutations
             ]
         );
 
+        // Register curator with the curator service via message bus
+        // This will create the API token and send it directly to the curator service
+        $this->messageBus->registerCurator($curatorUser, $collectionCurator);
+
         return [
             'curator' => $curatorUser,
-            'apiToken' => $tokenResult['plainTextToken'],
             'collectionCurator' => $collectionCurator,
+            // Note: API token is not returned - it's sent directly to the curator service
         ];
     }
 

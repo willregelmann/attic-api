@@ -6,6 +6,7 @@ use App\Models\CollectionCurator;
 use App\Models\CuratorSuggestion;
 use App\Models\Item;
 use App\Services\CuratorService;
+use App\Services\CuratorMessageBusService;
 use Illuminate\Support\Facades\Auth;
 use GraphQL\Type\Definition\ResolveInfo;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
@@ -13,10 +14,12 @@ use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 class CuratorMutations
 {
     protected CuratorService $curatorService;
+    protected CuratorMessageBusService $messageBus;
 
-    public function __construct(CuratorService $curatorService)
+    public function __construct(CuratorService $curatorService, CuratorMessageBusService $messageBus)
     {
         $this->curatorService = $curatorService;
+        $this->messageBus = $messageBus;
     }
 
     /**
@@ -73,6 +76,9 @@ class CuratorMutations
 
         $curator->update($updateData);
 
+        // Notify curator service of the update
+        $this->messageBus->updateCurator($curator);
+
         return $curator;
     }
 
@@ -125,8 +131,8 @@ class CuratorMutations
             $curator->update(['status' => 'active']);
         }
 
-        // Queue the curator run
-        $this->curatorService->queueCuratorRun($curator);
+        // Send run command to curator service via message bus
+        $this->messageBus->runCurator($curator);
 
         return [
             'success' => true,
