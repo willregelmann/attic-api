@@ -236,6 +236,27 @@ type Query {
 }
 
 type Mutation {
+    # ===== ITEM MANAGEMENT =====
+
+    # Create a new item (collection or collectible)
+    createItem(
+        name: String! @rules(apply: ["required", "string", "max:255"])
+        type: ItemType! @rules(apply: ["required"])
+        metadata: JSON
+    ): Item! @field(resolver: "App\\GraphQL\\Mutations\\ItemMutations@createItem")
+
+    # Update an existing item
+    updateItem(
+        id: ID! @rules(apply: ["required"])
+        name: String @rules(apply: ["string", "max:255"])
+        metadata: JSON
+    ): Item! @field(resolver: "App\\GraphQL\\Mutations\\ItemMutations@updateItem")
+
+    # Delete an item
+    deleteItem(
+        id: ID! @rules(apply: ["required"])
+    ): String! @field(resolver: "App\\GraphQL\\Mutations\\ItemMutations@deleteItem")
+
     # ===== AUTHENTICATION =====
 
     # Login
@@ -271,7 +292,7 @@ type Mutation {
     updateMyItem(
         item_id: ID!
         metadata: JSON!
-    ): UserItem! @guard
+    ): UserItem! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserItemMutations@updateMyItem")
 
     # Remove item from user's collection
     removeItemFromMyCollection(

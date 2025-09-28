@@ -47,4 +47,30 @@ class UserItemMutations
 
         return $userItem;
     }
+
+    /**
+     * Update user's item metadata
+     */
+    public function updateMyItem($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
+    {
+        $user = Auth::guard('sanctum')->user();
+
+        if (!$user) {
+            throw new \Exception('Unauthenticated');
+        }
+
+        $userItem = UserItem::where('user_id', $user->id)
+            ->where('item_id', $args['item_id'])
+            ->firstOrFail();
+
+        $userItem->metadata = array_merge(
+            $userItem->metadata ?? [],
+            $args['metadata']
+        );
+        $userItem->save();
+
+        $userItem->load(['user', 'item']);
+
+        return $userItem;
+    }
 }
