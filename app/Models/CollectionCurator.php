@@ -13,6 +13,8 @@ class CollectionCurator extends Model
 
     protected $fillable = [
         'collection_id',
+        'curator_user_id',
+        'api_token_encrypted',
         'prompt',
         'status',
         'last_run_at',
@@ -32,9 +34,18 @@ class CollectionCurator extends Model
         'next_run_at' => 'datetime',
     ];
 
+    protected $hidden = [
+        'api_token_encrypted',
+    ];
+
     public function collection(): BelongsTo
     {
         return $this->belongsTo(Item::class, 'collection_id');
+    }
+
+    public function curatorUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'curator_user_id');
     }
 
     public function suggestions(): HasMany
@@ -77,5 +88,34 @@ class CollectionCurator extends Model
     {
         $total = $this->suggestions_approved + $this->suggestions_rejected;
         return $total > 0 ? ($this->suggestions_approved / $total) * 100 : 0;
+    }
+
+    /**
+     * Store the API token encrypted
+     */
+    public function setApiToken(string $plainTextToken): void
+    {
+        $this->api_token_encrypted = encrypt($plainTextToken);
+        $this->save();
+    }
+
+    /**
+     * Retrieve the decrypted API token
+     */
+    public function getApiToken(): ?string
+    {
+        if (!$this->api_token_encrypted) {
+            return null;
+        }
+
+        try {
+            return decrypt($this->api_token_encrypted);
+        } catch (\Exception $e) {
+            \Log::error('Failed to decrypt curator API token', [
+                'curator_id' => $this->id,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
     }
 }

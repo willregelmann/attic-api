@@ -38,6 +38,7 @@ return [
     'curator' => [
         'shared_secret' => env('CURATOR_SHARED_SECRET', 'change-in-production'),
         'service_url' => env('CURATOR_SERVICE_URL'),
+        'model' => env('CURATOR_MODEL', 'claude-3-5-sonnet-20241022'),
     ],
 
 ];

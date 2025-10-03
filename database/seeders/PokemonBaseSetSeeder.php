@@ -27,7 +27,7 @@ class PokemonBaseSetSeeder extends Seeder
 
         // Create the Pokemon Base Set collection
         $baseSetCollection = Item::create([
-            'type' => 'collection',
+            'type' => 'COLLECTION',
             'name' => 'Pokemon Base Set',
             'metadata' => [
                 'set_number' => '1',
@@ -41,7 +41,7 @@ class PokemonBaseSetSeeder extends Seeder
 
         // Create Charizard card
         $charizard = Item::create([
-            'type' => 'collectible',
+            'type' => 'COLLECTIBLE',
             'name' => 'Charizard',
             'metadata' => [
                 'card_number' => '004/102',
@@ -110,7 +110,7 @@ class PokemonBaseSetSeeder extends Seeder
 
         // Create Blastoise card
         $blastoise = Item::create([
-            'type' => 'collectible',
+            'type' => 'COLLECTIBLE',
             'name' => 'Blastoise',
             'metadata' => [
                 'card_number' => '002/102',
@@ -159,7 +159,7 @@ class PokemonBaseSetSeeder extends Seeder
 
         // Create Venusaur card
         $venusaur = Item::create([
-            'type' => 'collectible',
+            'type' => 'COLLECTIBLE',
             'name' => 'Venusaur',
             'metadata' => [
                 'card_number' => '015/102',
@@ -187,7 +187,7 @@ class PokemonBaseSetSeeder extends Seeder
 
         // Create Pikachu (non-holo common)
         $pikachu = Item::create([
-            'type' => 'collectible',
+            'type' => 'COLLECTIBLE',
             'name' => 'Pikachu',
             'metadata' => [
                 'card_number' => '058/102',

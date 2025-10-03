@@ -26,14 +26,20 @@ class CuratorMutations
     {
         $user = Auth::guard('sanctum')->user();
         $collection = Item::findOrFail($args['collection_id']);
-        
+
         // Check if user is a maintainer
         $isMaintainer = $collection->maintainers()
             ->where('user_id', $user->id)
             ->exists();
-            
+
         if (!$isMaintainer) {
-            throw new \Exception('You must be a collection maintainer to create a curator');
+            // If not a maintainer, add them as one (curator role)
+            \App\Models\CollectionMaintainer::create([
+                'collection_id' => $collection->id,
+                'user_id' => $user->id,
+                'role' => 'curator',
+                'permissions' => json_encode(['manage_curator', 'view', 'suggest']),
+            ]);
         }
 
         $curator = CollectionCurator::create([
@@ -45,8 +51,30 @@ class CuratorMutations
             'next_run_at' => now()->addDay(), // First run will be tomorrow
         ]);
 
-        // Register the curator with the curator service
-        $this->messageBus->registerCurator($user, $curator);
+        // Create a user account for the curator
+        $curatorUser = \App\Models\User::create([
+            'name' => "Curator for {$collection->name}",
+            'email' => "curator.{$curator->id}@attic.internal",
+            'password' => \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(32)),
+        ]);
+
+        // Generate API token for the curator
+        $token = $curatorUser->createToken('curator-token', ['curator:*'])->plainTextToken;
+
+        // Add the curator user as a maintainer of the collection
+        \App\Models\CollectionMaintainer::create([
+            'collection_id' => $collection->id,
+            'user_id' => $curatorUser->id,
+            'role' => 'curator',
+            'permissions' => json_encode(['manage_curator', 'view', 'suggest']),
+        ]);
+
+        // Store the curator user ID and encrypted token in the curator record
+        $curator->update(['curator_user_id' => $curatorUser->id]);
+        $curator->setApiToken($token);
+
+        // Register the curator with the curator service via Redis message bus
+        $this->messageBus->registerCurator($curator, $token);
 
         return $curator;
     }
@@ -281,18 +309,25 @@ class CuratorMutations
     }
 
     /**
-     * Create a curator suggestion (for AI curator tools)
+     * Create a suggestion from any authenticated user (curator or human)
+     * The user_id is automatically derived from the authenticated Bearer token
+     * curator_id is optional and only used for tracking which curator (if any) generated the suggestion
      */
-    public function createCuratorSuggestion($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
+    public function createSuggestion($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
     {
         $user = Auth::guard('sanctum')->user();
-        $curator = CollectionCurator::findOrFail($args['curator_id']);
-        
-        // Verify the user has curator access (this would typically be the curator agent's token)
-        // For now, we'll allow any authenticated user to create suggestions
-        
+
+        // curator_id is now optional - if provided, it's for tracking purposes only
+        $curatorId = isset($args['curator_id']) ? $args['curator_id'] : null;
+
+        // Validate curator exists if provided
+        if ($curatorId) {
+            CollectionCurator::findOrFail($curatorId);
+        }
+
         $suggestion = CuratorSuggestion::create([
-            'curator_id' => $curator->id,
+            'curator_id' => $curatorId,
+            'user_id' => $user->id, // Use authenticated user's ID
             'collection_id' => $args['collection_id'],
             'action_type' => $args['action_type'],
             'suggestion_data' => $args['suggestion_data'],
@@ -351,6 +386,71 @@ class CuratorMutations
         ];
     }
     
+    /**
+     * Create a batch of curator suggestions
+     * Suggestions are user-agnostic - they can come from curators (automated users) or regular users
+     */
+    public function createCuratorSuggestionsBatch($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
+    {
+        $user = Auth::guard('sanctum')->user();
+        $created = [];
+        $errors = [];
+
+        foreach ($args['suggestions'] as $suggestionData) {
+            try {
+                // curator_id is optional
+                $curatorId = isset($suggestionData['curator_id']) ? $suggestionData['curator_id'] : null;
+
+                // Validate curator exists if provided
+                if ($curatorId) {
+                    CollectionCurator::findOrFail($curatorId);
+                }
+
+                $suggestion = CuratorSuggestion::create([
+                    'curator_id' => $curatorId,
+                    'user_id' => $user->id, // Use authenticated user's ID
+                    'collection_id' => $suggestionData['collection_id'],
+                    'action_type' => $suggestionData['action_type'],
+                    'suggestion_data' => $suggestionData['suggestion_data'],
+                    'reasoning' => $suggestionData['reasoning'],
+                    'confidence_score' => $suggestionData['confidence_score'] ?? 80,
+                    'status' => 'pending'
+                ]);
+
+                $created[] = $suggestion;
+            } catch (\Exception $e) {
+                $errors[] = "Failed to create suggestion: " . $e->getMessage();
+            }
+        }
+
+        return [
+            'success' => count($errors) === 0,
+            'created' => count($created),
+            'errors' => $errors,
+            'suggestions' => $created
+        ];
+    }
+
+    /**
+     * Create a curator run log
+     */
+    public function createCuratorRunLog($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
+    {
+        $user = Auth::guard('sanctum')->user();
+
+        $runLog = \App\Models\CuratorRunLog::create([
+            'curator_id' => $args['curator_id'],
+            'status' => $args['status'],
+            'started_at' => now(),
+            'completed_at' => $args['status'] === 'completed' ? now() : null,
+            'items_analyzed' => 0,
+            'suggestions_generated' => $args['suggestions_count'] ?? 0,
+            'error_message' => $args['error_message'] ?? null,
+        ]);
+
+        return $runLog;
+    }
+
     /**
      * Delete a curator
      */

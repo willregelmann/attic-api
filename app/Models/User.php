@@ -88,4 +88,22 @@ class User extends Authenticatable
     {
         return $this->hasMany(ItemImage::class);
     }
+
+    /**
+     * Get wishlist items for this user
+     */
+    public function wishlistItems()
+    {
+        return $this->belongsToMany(Item::class, 'wishlists')
+            ->withTimestamps()
+            ->using(Wishlist::class);
+    }
+
+    /**
+     * Get wishlist entries for this user
+     */
+    public function wishlists()
+    {
+        return $this->hasMany(Wishlist::class);
+    }
 }

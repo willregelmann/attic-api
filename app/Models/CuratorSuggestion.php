@@ -14,6 +14,7 @@ class CuratorSuggestion extends Model
 
     protected $fillable = [
         'curator_id',
+        'user_id',
         'collection_id',
         'action_type',
         'item_id',
@@ -42,6 +43,11 @@ class CuratorSuggestion extends Model
     public function curator(): BelongsTo
     {
         return $this->belongsTo(CollectionCurator::class, 'curator_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function collection(): BelongsTo

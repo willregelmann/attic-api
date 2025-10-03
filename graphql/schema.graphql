@@ -134,6 +134,18 @@ type UserItem {
     item: Item! @belongsTo
 }
 
+# Wishlist entry
+type Wishlist {
+    id: ID!
+    user_id: ID!
+    item_id: ID!
+    created_at: DateTime!
+    updated_at: DateTime!
+
+    user: User! @belongsTo
+    item: Item! @belongsTo
+}
+
 # Collection statistics
 type CollectionStats {
     totalItems: Int!
@@ -220,13 +232,21 @@ type Query {
     myCollectionStats(
         collection_id: ID!
     ): CollectionStats! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyCollectionStats")
-    
+
+    # User's wishlist items
+    myWishlist: [Wishlist!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyWishlist")
+
     # ===== CURATOR QUERIES (Auth required) =====
     
     # Get curator for a collection
     collectionCurator(
         collection_id: ID!
     ): CollectionCurator @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\CuratorQueries@getCollectionCurator")
+
+    # Get curator with API token (for curator service registration)
+    curatorWithToken(
+        curator_id: ID!
+    ): CuratorWithToken @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\CuratorQueries@getCuratorWithToken")
     
     # Get pending suggestions for a collection
     curatorSuggestions(
@@ -308,6 +328,18 @@ type Mutation {
     unfavoriteCollection(
         collection_id: ID!
     ): User! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\FavoriteMutations@unfavoriteCollection")
+
+    # ===== WISHLIST MANAGEMENT (Auth required) =====
+
+    # Add item to wishlist
+    addItemToWishlist(
+        item_id: ID!
+    ): Wishlist! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\WishlistMutations@addItemToWishlist")
+
+    # Remove item from wishlist
+    removeItemFromWishlist(
+        item_id: ID!
+    ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\WishlistMutations@removeItemFromWishlist")
 
     # ===== COLLECTION MANAGEMENT (Auth required) =====
     
@@ -410,21 +442,45 @@ type Mutation {
         notes: String
     ): BatchReviewResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@reviewMultipleSuggestions")
     
-    # Create a curator suggestion (for AI curator tools)
-    createCuratorSuggestion(
-        curator_id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
+    # Create a suggestion (from any authenticated user - curator or human)
+    createSuggestion(
+        curator_id: ID @rules(apply: ["exists:collection_curators,id"])
         collection_id: ID! @rules(apply: ["required", "exists:items,id"])
         action_type: String! @rules(apply: ["required", "in:add_item,remove_item,update_item,add_subcollection"])
         suggestion_data: JSON!
         reasoning: String!
         confidence_score: Int @rules(apply: ["min:0", "max:100"])
-    ): CuratorSuggestion! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@createCuratorSuggestion")
+    ): CuratorSuggestion! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@createSuggestion")
+
+    # Legacy alias for backward compatibility
+    createCuratorSuggestion(
+        curator_id: ID @rules(apply: ["exists:collection_curators,id"])
+        collection_id: ID! @rules(apply: ["required", "exists:items,id"])
+        action_type: String! @rules(apply: ["required", "in:add_item,remove_item,update_item,add_subcollection"])
+        suggestion_data: JSON!
+        reasoning: String!
+        confidence_score: Int @rules(apply: ["min:0", "max:100"])
+    ): CuratorSuggestion! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@createSuggestion")
     
+    # Create a batch of curator suggestions
+    createCuratorSuggestionsBatch(
+        suggestions: [CuratorSuggestionInput!]!
+    ): CuratorSuggestionsBatchResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@createCuratorSuggestionsBatch")
+
+    # Create a curator run log
+    createCuratorRunLog(
+        curator_id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
+        status: String! @rules(apply: ["required", "in:started,completed,failed"])
+        suggestions_count: Int
+        execution_time: Float
+        error_message: String
+    ): CuratorRunLog! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@createCuratorRunLog")
+
     # Delete a curator
     deleteCurator(
         id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
     ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@deleteCurator")
-    
+
     # Execute approved suggestions
     executeApprovedSuggestions(
         collection_id: ID! @rules(apply: ["required", "exists:items,id"])
@@ -474,8 +530,10 @@ type CollectionCurator {
 
 type CuratorSuggestion {
     id: ID!
-    curator_id: ID!
-    curator: CollectionCurator!
+    curator_id: ID
+    curator: CollectionCurator
+    user_id: ID!
+    user: User!
     collection_id: ID!
     collection: Item!
     action_type: String!
@@ -515,4 +573,44 @@ type ExecutionResult {
     executed: Int!
     failed: Int!
     message: String
+}
+
+input CuratorSuggestionInput {
+    curator_id: ID
+    collection_id: ID!
+    action_type: String!
+    suggestion_data: JSON!
+    reasoning: String!
+    confidence_score: Int
+}
+
+type CuratorSuggestionsBatchResult {
+    success: Boolean!
+    created: Int!
+    errors: [String!]!
+    suggestions: [CuratorSuggestion!]!
+}
+
+type CuratorRunLog {
+    id: ID!
+    curator_id: ID!
+    status: String!
+    started_at: DateTime
+    completed_at: DateTime
+    items_analyzed: Int
+    suggestions_generated: Int
+    error_message: String
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type CuratorWithToken {
+    id: ID!
+    collection_id: ID!
+    prompt: String!
+    status: String!
+    auto_approve: Boolean!
+    confidence_threshold: Int!
+    api_token: String!
+    collection: Item
 }

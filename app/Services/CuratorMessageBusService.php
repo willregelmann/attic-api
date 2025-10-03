@@ -33,30 +33,34 @@ class CuratorMessageBusService
     
     /**
      * Register a new curator with the service
+     *
+     * @param CollectionCurator $curator The curator to register
+     * @param string $apiToken The API token for the curator's user account
      */
-    public function registerCurator(User $curatorUser, CollectionCurator $curator): void
+    public function registerCurator(CollectionCurator $curator, string $apiToken): void
     {
-        // Generate API token for the curator user
-        $tokenResult = \App\Models\ApiToken::createTokenForUser($curatorUser, 'Curator Agent Token');
-        $plainTextToken = $tokenResult['plainTextToken'];
-        
-        // Send registration command with token
+        // Get the curator user
+        $curatorUser = $curator->curatorUser;
+
+        // Send registration command with token via Redis
         $this->sendCommand('register_curator', [
             'curator_id' => $curator->id,
-            'api_token' => $plainTextToken,
+            'collection_id' => $curator->collection_id,
+            'api_token' => $apiToken,
             'curator_config' => [
-                'name' => $curatorUser->name,
+                'name' => $curatorUser->name ?? "Curator {$curator->id}",
                 'collection_id' => $curator->collection_id,
                 'prompt' => $curator->prompt,
-                'schedule' => $curator->schedule,
-                'model' => 'claude-3-haiku-20240307',
+                'model' => config('services.curator.model', 'claude-3-5-sonnet-20241022'),
                 'auto_approve' => $curator->auto_approve,
                 'confidence_threshold' => $curator->confidence_threshold
             ]
         ]);
-        
-        // Note: We do NOT store the token in our database
-        // The curator service will store it encrypted
+
+        Log::info('Sent curator registration to message bus', [
+            'curator_id' => $curator->id,
+            'collection_id' => $curator->collection_id
+        ]);
     }
     
     /**
