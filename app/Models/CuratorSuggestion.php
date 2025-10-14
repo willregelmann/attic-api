@@ -2,11 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use App\Models\Item;
-use App\Models\ItemImage;
 
 class CuratorSuggestion extends Model
 {
@@ -72,12 +70,13 @@ class CuratorSuggestion extends Model
 
     public function isHighConfidence(): bool
     {
-        return $this->confidence_score >= ($this->curator->confidence_threshold ?? 80);
+        $threshold = $this->curator?->confidence_threshold ?? 80;
+        return $this->confidence_score >= $threshold;
     }
 
     public function shouldAutoApprove(): bool
     {
-        return $this->curator->auto_approve && $this->isHighConfidence();
+        return $this->curator?->auto_approve && $this->isHighConfidence();
     }
 
     public function approve(User $user, ?string $notes = null): void
@@ -89,7 +88,10 @@ class CuratorSuggestion extends Model
             'review_notes' => $notes,
         ]);
 
-        $this->curator->increment('suggestions_approved');
+        // Only increment curator stats if suggestion is associated with a curator
+        if ($this->curator) {
+            $this->curator->increment('suggestions_approved');
+        }
     }
 
     public function reject(User $user, ?string $notes = null): void
@@ -101,7 +103,10 @@ class CuratorSuggestion extends Model
             'review_notes' => $notes,
         ]);
 
-        $this->curator->increment('suggestions_rejected');
+        // Only increment curator stats if suggestion is associated with a curator
+        if ($this->curator) {
+            $this->curator->increment('suggestions_rejected');
+        }
     }
 
     public function execute(): bool
@@ -134,6 +139,7 @@ class CuratorSuggestion extends Model
                     'message' => $e->getMessage(),
                 ],
             ]);
+
             return false;
         }
     }
@@ -141,7 +147,7 @@ class CuratorSuggestion extends Model
     private function executeAddItem(): array
     {
         $data = $this->suggestion_data;
-        
+
         // Create the item
         $item = Item::create([
             'name' => $data['item_name'] ?? $data['name'] ?? 'Unnamed Item',
@@ -167,7 +173,7 @@ class CuratorSuggestion extends Model
     private function executeAddSubcollection(): array
     {
         $data = $this->suggestion_data;
-        
+
         // Create the subcollection
         $subcollection = Item::create([
             'name' => $data['subcollection_name'] ?? 'Unnamed Subcollection',
@@ -181,46 +187,57 @@ class CuratorSuggestion extends Model
                 'relationship_type' => 'contains',
                 'metadata' => [],
             ]);
+
+            // Copy all maintainers from parent collection to subcollection
+            $parentMaintainers = $this->collection->maintainers()->get();
+            foreach ($parentMaintainers as $maintainer) {
+                \App\Models\CollectionMaintainer::create([
+                    'collection_id' => $subcollection->id,
+                    'user_id' => $maintainer->user_id,
+                    'role' => $maintainer->role,
+                    'permissions' => $maintainer->permissions,
+                ]);
+            }
         }
 
         // Create images if logo_url or symbol_url is provided in metadata
         $metadata = $data['subcollection_metadata'] ?? [];
-        if (!empty($metadata['logo_url'])) {
+        if (! empty($metadata['logo_url'])) {
             ItemImage::create([
                 'item_id' => $subcollection->id,
                 'url' => $metadata['logo_url'],
-                'alt_text' => $subcollection->name . ' logo',
+                'alt_text' => $subcollection->name.' logo',
                 'is_primary' => true,
-                'metadata' => ['type' => 'logo']
+                'metadata' => ['type' => 'logo'],
             ]);
         }
-        
-        if (!empty($metadata['symbol_url'])) {
+
+        if (! empty($metadata['symbol_url'])) {
             ItemImage::create([
                 'item_id' => $subcollection->id,
                 'url' => $metadata['symbol_url'],
-                'alt_text' => $subcollection->name . ' symbol',
+                'alt_text' => $subcollection->name.' symbol',
                 'is_primary' => empty($metadata['logo_url']), // Only primary if no logo
-                'metadata' => ['type' => 'symbol']
+                'metadata' => ['type' => 'symbol'],
             ]);
         }
 
         // Create nested items if provided
         $createdItems = [];
-        if (!empty($data['nested_items'])) {
+        if (! empty($data['nested_items'])) {
             foreach ($data['nested_items'] as $nestedItem) {
                 $item = Item::create([
                     'name' => $nestedItem['item_name'] ?? $nestedItem['name'] ?? 'Unnamed Item',
                     'type' => 'collectible',
                     'metadata' => $nestedItem['metadata'] ?? [],
                 ]);
-                
+
                 // Add to subcollection
                 $subcollection->children()->attach($item->id, [
                     'relationship_type' => 'contains',
                     'metadata' => [],
                 ]);
-                
+
                 $createdItems[] = $item->id;
             }
         }
@@ -229,13 +246,13 @@ class CuratorSuggestion extends Model
             'status' => 'success',
             'subcollection_id' => $subcollection->id,
             'created_items' => $createdItems,
-            'message' => "Created subcollection: {$subcollection->name} with " . count($createdItems) . " items",
+            'message' => "Created subcollection: {$subcollection->name} with ".count($createdItems).' items',
         ];
     }
 
     private function executeRemoveItem(): array
     {
-        if (!$this->item_id) {
+        if (! $this->item_id) {
             return ['status' => 'error', 'message' => 'No item ID specified'];
         }
 
@@ -243,13 +260,13 @@ class CuratorSuggestion extends Model
 
         return [
             'status' => 'success',
-            'message' => "Removed item from collection",
+            'message' => 'Removed item from collection',
         ];
     }
 
     private function executeUpdateItem(): array
     {
-        if (!$this->item) {
+        if (! $this->item) {
             return ['status' => 'error', 'message' => 'Item not found'];
         }
 

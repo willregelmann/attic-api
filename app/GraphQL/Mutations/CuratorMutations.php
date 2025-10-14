@@ -193,11 +193,9 @@ class CuratorMutations
 
         if ($args['action'] === 'approve') {
             $suggestion->approve($user, $args['notes'] ?? null);
-            
-            // Execute immediately if requested
-            if ($args['execute_now'] ?? false) {
-                $suggestion->execute();
-            }
+
+            // Execute immediately upon approval
+            $suggestion->execute();
         } else {
             $suggestion->reject($user, $args['notes'] ?? null);
         }
@@ -239,21 +237,25 @@ class CuratorMutations
         // Review each suggestion
         $approved = 0;
         $rejected = 0;
-        
+
         foreach ($suggestions as $suggestion) {
             if (!$suggestion->isPending()) {
                 continue;
             }
-            
+
             if ($args['action'] === 'approve') {
                 $suggestion->approve($user, $args['notes'] ?? null);
+
+                // Execute immediately upon approval
+                $suggestion->execute();
+
                 $approved++;
             } else {
                 $suggestion->reject($user, $args['notes'] ?? null);
                 $rejected++;
             }
         }
-        
+
         return [
             'success' => true,
             'approved' => $approved,
@@ -290,11 +292,11 @@ class CuratorMutations
         foreach ($suggestions as $suggestion) {
             if ($args['action'] === 'approve') {
                 $suggestion->approve($user, $args['notes'] ?? null);
+
+                // Execute immediately upon approval
+                $suggestion->execute();
+
                 $approved++;
-                
-                if ($args['execute_now'] ?? false) {
-                    $suggestion->execute();
-                }
             } else {
                 $suggestion->reject($user, $args['notes'] ?? null);
                 $rejected++;
