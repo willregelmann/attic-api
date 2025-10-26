@@ -6,6 +6,45 @@ scalar DateTime @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Date
 
 scalar JSON
 
+# ===== DATABASE OF THINGS TYPES =====
+
+# Entity from Database of Things (canonical collectibles data)
+type Entity {
+    id: ID!
+    type: String!
+    name: String!
+    year: Int
+    country: String
+    attributes: JSON
+    image_url: String
+    external_ids: JSON
+    created_at: DateTime
+    updated_at: DateTime
+    similarity: Float  # Similarity score for semantic search results
+    parents: [Entity!]  # Parent collections (only populated in hierarchy queries)
+}
+
+# Database of Things PageInfo for cursor-based pagination
+type DatabaseOfThingsPageInfo {
+    hasNextPage: Boolean!
+    hasPreviousPage: Boolean!
+    startCursor: String
+    endCursor: String
+}
+
+# Entity connection for paginated results
+type EntityConnection {
+    edges: [EntityEdge!]!
+    pageInfo: DatabaseOfThingsPageInfo!
+}
+
+type EntityEdge {
+    node: Entity!
+    cursor: String!
+}
+
+# ===== END DATABASE OF THINGS TYPES =====
+
 # Pagination types
 type ItemPaginator {
     paginatorInfo: PaginatorInfo!
@@ -122,28 +161,28 @@ type User {
 }
 
 # User item ownership (pivot with metadata)
+# entity_id references Database of Things entity UUID (canonical collectibles data)
 type UserItem {
     id: ID!
     user_id: ID!
-    item_id: ID!
+    entity_id: ID!
     metadata: JSON
     created_at: DateTime!
     updated_at: DateTime!
 
     user: User! @belongsTo
-    item: Item! @belongsTo
 }
 
 # Wishlist entry
+# entity_id references Database of Things entity UUID (canonical collectibles data)
 type Wishlist {
     id: ID!
     user_id: ID!
-    item_id: ID!
+    entity_id: ID!
     created_at: DateTime!
     updated_at: DateTime!
 
     user: User! @belongsTo
-    item: Item! @belongsTo
 }
 
 # Collection statistics
@@ -236,23 +275,44 @@ type Query {
     # User's wishlist items
     myWishlist: [Wishlist!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyWishlist")
 
-    # ===== CURATOR QUERIES (Auth required) =====
-    
-    # Get curator for a collection
-    collectionCurator(
-        collection_id: ID!
-    ): CollectionCurator @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\CuratorQueries@getCollectionCurator")
+    # ===== DATABASE OF THINGS QUERIES =====
 
-    # Get curator with API token (for curator service registration)
-    curatorWithToken(
-        curator_id: ID!
-    ): CuratorWithToken @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\CuratorQueries@getCuratorWithToken")
-    
-    # Get pending suggestions for a collection
-    curatorSuggestions(
+    # Browse collections from Database of Things
+    databaseOfThingsCollections(
+        first: Int = 50
+        after: String
+    ): [Entity!]! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\CollectionsList")
+
+    # Search entities in Database of Things
+    databaseOfThingsSearch(
+        query: String!
+        type: String
+        first: Int = 50
+    ): [Entity!]! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\SearchEntities")
+
+    # Semantic search using vector embeddings
+    databaseOfThingsSemanticSearch(
+        query: String!
+        type: String
+        first: Int = 20
+    ): [Entity!]! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\SemanticSearch")
+
+    # Get items in a Database of Things collection
+    databaseOfThingsCollectionItems(
         collection_id: ID!
-        status: String
-    ): [CuratorSuggestion!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\CuratorQueries@getCuratorSuggestions")
+        first: Int = 1000
+        after: String
+    ): [Entity!]! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\CollectionItems")
+
+    # Get a single entity from Database of Things
+    databaseOfThingsEntity(
+        id: ID!
+    ): Entity @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\GetEntity")
+
+    # Get parent collections for an item from Database of Things
+    databaseOfThingsItemParents(
+        item_id: ID!
+    ): [Entity!]! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\GetItemParents")
 }
 
 type Mutation {
@@ -302,21 +362,21 @@ type Mutation {
 
     # ===== USER ITEM MANAGEMENT (Auth required) =====
 
-    # Add item to user's collection
+    # Add item to user's collection (entity_id references Database of Things entity)
     addItemToMyCollection(
-        item_id: ID!
+        entity_id: ID!
         metadata: JSON
     ): UserItem! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserItemMutations@addItemToMyCollection")
 
-    # Update user's item metadata
+    # Update user's item metadata (entity_id references Database of Things entity)
     updateMyItem(
-        item_id: ID!
+        entity_id: ID!
         metadata: JSON!
     ): UserItem! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserItemMutations@updateMyItem")
 
-    # Remove item from user's collection
+    # Remove item from user's collection (entity_id references Database of Things entity)
     removeItemFromMyCollection(
-        item_id: ID!
+        entity_id: ID!
     ): String! @guard
 
     # Favorite a collection
@@ -331,14 +391,14 @@ type Mutation {
 
     # ===== WISHLIST MANAGEMENT (Auth required) =====
 
-    # Add item to wishlist
+    # Add item to wishlist (entity_id references Database of Things entity)
     addItemToWishlist(
-        item_id: ID!
+        entity_id: ID!
     ): Wishlist! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\WishlistMutations@addItemToWishlist")
 
-    # Remove item from wishlist
+    # Remove item from wishlist (entity_id references Database of Things entity)
     removeItemFromWishlist(
-        item_id: ID!
+        entity_id: ID!
     ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\WishlistMutations@removeItemFromWishlist")
 
     # ===== COLLECTION MANAGEMENT (Auth required) =====
@@ -398,94 +458,6 @@ type Mutation {
         id: ID! @rules(apply: ["required", "exists:api_tokens,id"])
     ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\ApiTokenMutations@revokeToken")
     
-    # ===== CURATOR MANAGEMENT (Auth required) =====
-    
-    # Create a curator for a collection
-    createCurator(
-        collection_id: ID! @rules(apply: ["required", "exists:items,id"])
-        prompt: String! @rules(apply: ["required", "string"])
-        auto_approve: Boolean
-        confidence_threshold: Int @rules(apply: ["min:0", "max:100"])
-    ): CollectionCurator! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@createCurator")
-    
-    # Update curator configuration
-    updateCurator(
-        id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
-        prompt: String
-        auto_approve: Boolean
-        confidence_threshold: Int @rules(apply: ["min:0", "max:100"])
-    ): CollectionCurator! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@updateCurator")
-    
-    # Toggle curator status
-    toggleCuratorStatus(
-        id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
-    ): CollectionCurator! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@toggleCuratorStatus")
-    
-    # Manually run curator
-    runCurator(
-        id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
-        message: String @rules(apply: ["string", "max:2000"])
-    ): CuratorRunResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@runCurator")
-    
-    # Review a suggestion
-    reviewSuggestion(
-        id: ID! @rules(apply: ["required", "exists:curator_suggestions,id"])
-        action: String! @rules(apply: ["required", "in:approve,reject"])
-        notes: String
-        execute_now: Boolean
-    ): CuratorSuggestion! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@reviewSuggestion")
-    
-    # Review multiple suggestions at once
-    reviewMultipleSuggestions(
-        ids: [ID!]! @rules(apply: ["required"])
-        action: String! @rules(apply: ["required", "in:approve,reject"])
-        notes: String
-    ): BatchReviewResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@reviewMultipleSuggestions")
-    
-    # Create a suggestion (from any authenticated user - curator or human)
-    createSuggestion(
-        curator_id: ID @rules(apply: ["exists:collection_curators,id"])
-        collection_id: ID! @rules(apply: ["required", "exists:items,id"])
-        action_type: String! @rules(apply: ["required", "in:add_item,remove_item,update_item,add_subcollection"])
-        suggestion_data: JSON!
-        reasoning: String!
-        confidence_score: Int @rules(apply: ["min:0", "max:100"])
-    ): CuratorSuggestion! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@createSuggestion")
-
-    # Legacy alias for backward compatibility
-    createCuratorSuggestion(
-        curator_id: ID @rules(apply: ["exists:collection_curators,id"])
-        collection_id: ID! @rules(apply: ["required", "exists:items,id"])
-        action_type: String! @rules(apply: ["required", "in:add_item,remove_item,update_item,add_subcollection"])
-        suggestion_data: JSON!
-        reasoning: String!
-        confidence_score: Int @rules(apply: ["min:0", "max:100"])
-    ): CuratorSuggestion! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@createSuggestion")
-    
-    # Create a batch of curator suggestions
-    createCuratorSuggestionsBatch(
-        suggestions: [CuratorSuggestionInput!]!
-    ): CuratorSuggestionsBatchResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@createCuratorSuggestionsBatch")
-
-    # Create a curator run log
-    createCuratorRunLog(
-        curator_id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
-        status: String! @rules(apply: ["required", "in:started,completed,failed"])
-        suggestions_count: Int
-        execution_time: Float
-        error_message: String
-    ): CuratorRunLog! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@createCuratorRunLog")
-
-    # Delete a curator
-    deleteCurator(
-        id: ID! @rules(apply: ["required", "exists:collection_curators,id"])
-    ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@deleteCurator")
-
-    # Execute approved suggestions
-    executeApprovedSuggestions(
-        collection_id: ID! @rules(apply: ["required", "exists:items,id"])
-        limit: Int
-    ): ExecutionResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\CuratorMutations@executeApprovedSuggestions")
 }
 
 # ===== API TOKEN TYPES =====
@@ -504,113 +476,3 @@ type ApiTokenPayload {
     plainTextToken: String!
 }
 
-# ===== CURATOR TYPES =====
-
-type CollectionCurator {
-    id: ID!
-    collection_id: ID!
-    collection: Item!
-    prompt: String!
-    status: String!
-    last_run_at: DateTime
-    next_run_at: DateTime
-    auto_approve: Boolean!
-    confidence_threshold: Int!
-    suggestions_made: Int!
-    suggestions_approved: Int!
-    suggestions_rejected: Int!
-    performance_metrics: JSON
-    created_at: DateTime!
-    updated_at: DateTime!
-    
-    # Relationships
-    suggestions: [CuratorSuggestion!]!
-    pending_suggestions: [CuratorSuggestion!]!
-}
-
-type CuratorSuggestion {
-    id: ID!
-    curator_id: ID
-    curator: CollectionCurator
-    user_id: ID!
-    user: User!
-    collection_id: ID!
-    collection: Item!
-    action_type: String!
-    item_id: ID
-    item: Item
-    suggestion_data: JSON!
-    reasoning: String!
-    confidence_score: Int!
-    status: String!
-    reviewed_by: ID
-    reviewer: User
-    reviewed_at: DateTime
-    review_notes: String
-    executed: Boolean!
-    executed_at: DateTime
-    execution_result: JSON
-    expires_at: DateTime
-    created_at: DateTime!
-    updated_at: DateTime!
-}
-
-type CuratorRunResult {
-    success: Boolean!
-    message: String!
-    curator: CollectionCurator
-}
-
-type BatchReviewResult {
-    success: Boolean!
-    approved: Int!
-    rejected: Int!
-    message: String
-}
-
-type ExecutionResult {
-    success: Boolean!
-    executed: Int!
-    failed: Int!
-    message: String
-}
-
-input CuratorSuggestionInput {
-    curator_id: ID
-    collection_id: ID!
-    action_type: String!
-    suggestion_data: JSON!
-    reasoning: String!
-    confidence_score: Int
-}
-
-type CuratorSuggestionsBatchResult {
-    success: Boolean!
-    created: Int!
-    errors: [String!]!
-    suggestions: [CuratorSuggestion!]!
-}
-
-type CuratorRunLog {
-    id: ID!
-    curator_id: ID!
-    status: String!
-    started_at: DateTime
-    completed_at: DateTime
-    items_analyzed: Int
-    suggestions_generated: Int
-    error_message: String
-    created_at: DateTime!
-    updated_at: DateTime!
-}
-
-type CuratorWithToken {
-    id: ID!
-    collection_id: ID!
-    prompt: String!
-    status: String!
-    auto_approve: Boolean!
-    confidence_threshold: Int!
-    api_token: String!
-    collection: Item
-}

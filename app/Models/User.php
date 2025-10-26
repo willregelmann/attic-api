@@ -52,7 +52,18 @@ class User extends Authenticatable
     }
 
     /**
-     * Get items owned by this user
+     * Get user items (references to Supabase entities)
+     * Note: entity_id references Supabase entity UUID - no local Item relationship
+     */
+    public function userItems()
+    {
+        return $this->hasMany(UserItem::class);
+    }
+
+    /**
+     * Legacy relationship - deprecated
+     * User items now reference Supabase entities via entity_id
+     * Use userItems() instead
      */
     public function items()
     {

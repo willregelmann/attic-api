@@ -22,21 +22,19 @@ class WishlistMutations
             throw new \Exception('Unauthenticated');
         }
 
-        $item = Item::find($args['item_id']);
+        $entityId = $args['entity_id'];
 
-        if (!$item) {
-            throw new \Exception('Item not found');
-        }
+        // Note: entity_id references Supabase entity UUID - no local validation possible
 
-        // Check if item is already in user's collection
-        $alreadyOwned = $user->items()->where('item_id', $item->id)->exists();
+        // Check if entity is already in user's collection
+        $alreadyOwned = $user->userItems()->where('entity_id', $entityId)->exists();
         if ($alreadyOwned) {
             throw new \Exception('Item is already in your collection');
         }
 
-        // Check if item is already in wishlist
+        // Check if entity is already in wishlist
         $existingWishlist = Wishlist::where('user_id', $user->id)
-            ->where('item_id', $item->id)
+            ->where('entity_id', $entityId)
             ->first();
 
         if ($existingWishlist) {
@@ -46,12 +44,12 @@ class WishlistMutations
         // Create wishlist entry
         $wishlist = Wishlist::create([
             'user_id' => $user->id,
-            'item_id' => $item->id,
+            'entity_id' => $entityId,
         ]);
 
-        Log::info('Item added to wishlist', ['user_id' => $user->id, 'item_id' => $item->id]);
+        Log::info('Item added to wishlist', ['user_id' => $user->id, 'entity_id' => $entityId]);
 
-        return $wishlist->load('item', 'user');
+        return $wishlist->load('user');
     }
 
     /**
@@ -66,7 +64,7 @@ class WishlistMutations
         }
 
         $wishlist = Wishlist::where('user_id', $user->id)
-            ->where('item_id', $args['item_id'])
+            ->where('entity_id', $args['entity_id'])
             ->first();
 
         if (!$wishlist) {
@@ -75,7 +73,7 @@ class WishlistMutations
 
         $wishlist->delete();
 
-        Log::info('Item removed from wishlist', ['user_id' => $user->id, 'item_id' => $args['item_id']]);
+        Log::info('Item removed from wishlist', ['user_id' => $user->id, 'entity_id' => $args['entity_id']]);
 
         return 'Item removed from wishlist successfully';
     }

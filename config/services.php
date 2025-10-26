@@ -41,4 +41,9 @@ return [
         'model' => env('CURATOR_MODEL', 'claude-3-5-sonnet-20241022'),
     ],
 
+    'database_of_things' => [
+        'url' => env('DATABASE_OF_THINGS_API_URL', 'http://127.0.0.1:54321'),
+        'api_key' => env('DATABASE_OF_THINGS_API_KEY'),
+    ],
+
 ];

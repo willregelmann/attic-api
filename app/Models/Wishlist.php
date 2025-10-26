@@ -16,7 +16,7 @@ class Wishlist extends Model
 
     protected $fillable = [
         'user_id',
-        'item_id',
+        'entity_id', // References Supabase entity UUID
     ];
 
     /**
@@ -28,10 +28,7 @@ class Wishlist extends Model
     }
 
     /**
-     * Get the item
+     * Note: entity_id references a Supabase entity UUID
+     * No local Item relationship exists since canonical data is in Supabase
      */
-    public function item()
-    {
-        return $this->belongsTo(Item::class);
-    }
 }

@@ -27,21 +27,17 @@ class UserItemMutations
 
         $userId = $user->id;
 
-        // Check if the item exists
-        $item = Item::find($args['item_id']);
-        if (!$item) {
-            throw new \Exception('Item not found');
-        }
+        // Note: entity_id references Supabase entity UUID - no local validation possible
 
         // Create the UserItem record
         $userItem = new UserItem();
         $userItem->user_id = $userId;
-        $userItem->item_id = $args['item_id'];
+        $userItem->entity_id = $args['entity_id'];
         $userItem->metadata = $args['metadata'] ?? null;
         $userItem->save();
 
-        // Load relationships for GraphQL response
-        $userItem->load(['user', 'item']);
+        // Load user relationship for GraphQL response
+        $userItem->load(['user']);
 
         Log::info('UserItem created', ['id' => $userItem->id]);
 
@@ -60,7 +56,7 @@ class UserItemMutations
         }
 
         $userItem = UserItem::where('user_id', $user->id)
-            ->where('item_id', $args['item_id'])
+            ->where('entity_id', $args['entity_id'])
             ->firstOrFail();
 
         $userItem->metadata = array_merge(
@@ -69,7 +65,7 @@ class UserItemMutations
         );
         $userItem->save();
 
-        $userItem->load(['user', 'item']);
+        $userItem->load(['user']);
 
         return $userItem;
     }
