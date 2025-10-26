@@ -52,4 +52,7 @@ RUN echo '<VirtualHost *:80>\n\
 
 EXPOSE 80
 
-CMD ["apache2-foreground"]
+# Make start.sh executable
+RUN chmod +x start.sh
+
+CMD ["bash", "start.sh"]
