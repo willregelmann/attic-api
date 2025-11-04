@@ -53,6 +53,7 @@ class GetEntity
             'country' => $entity['country'],
             'attributes' => json_decode($entity['attributes'] ?? '{}', true),
             'image_url' => $entity['image_url'] ?? null,
+            'thumbnail_url' => $entity['thumbnail_url'] ?? null,
             'external_ids' => json_decode($entity['external_ids'] ?? '{}', true),
             'created_at' => $entity['created_at'] ?? null,
             'updated_at' => $entity['updated_at'] ?? null,

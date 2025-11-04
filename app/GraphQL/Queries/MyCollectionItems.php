@@ -3,22 +3,28 @@
 namespace App\GraphQL\Queries;
 
 use App\Models\UserItem;
+use App\Services\DatabaseOfThingsService;
 use Illuminate\Support\Facades\Auth;
 use GraphQL\Type\Definition\ResolveInfo;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 class MyCollectionItems
 {
+    protected $databaseOfThings;
+
+    public function __construct(DatabaseOfThingsService $databaseOfThings)
+    {
+        $this->databaseOfThings = $databaseOfThings;
+    }
+
     /**
-     * DEPRECATED: This query needs to be reimplemented with Supabase integration
+     * Get all items in the user's collection with entity details from Database of Things
      *
-     * Previously checked which items in a local collection were owned by the user.
-     * Now that collections are in Supabase:
-     * 1. Fetch collection items from Supabase via SupabaseGraphQLService
-     * 2. Check which entity_ids exist in user_items table for this user
-     * 3. Return matching UserItem records
-     *
-     * For now, returns all user items (not filtered by collection)
+     * @param mixed $rootValue
+     * @param array $args
+     * @param GraphQLContext $context
+     * @param ResolveInfo $resolveInfo
+     * @return array
      */
     public function __invoke($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
     {
@@ -28,8 +34,29 @@ class MyCollectionItems
             throw new \Exception('Unauthenticated');
         }
 
-        // TODO: Integrate with Supabase to filter by collection_id
-        // For now, return all user items
-        return UserItem::where('user_id', $user->id)->get();
+        // Get user's items
+        $userItems = UserItem::where('user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        if ($userItems->isEmpty()) {
+            return [];
+        }
+
+        // Extract entity IDs
+        $entityIds = $userItems->pluck('entity_id')->toArray();
+
+        // Batch fetch entities from Database of Things
+        $entitiesById = $this->databaseOfThings->getEntitiesByIds($entityIds);
+
+        // Return entities in the order they were added to collection
+        $orderedEntities = [];
+        foreach ($userItems as $userItem) {
+            if (isset($entitiesById[$userItem->entity_id])) {
+                $orderedEntities[] = $entitiesById[$userItem->entity_id];
+            }
+        }
+
+        return $orderedEntities;
     }
 }

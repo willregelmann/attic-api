@@ -61,12 +61,15 @@ class DatabaseOfThingsService
      * Normalize image URLs in an entity array
      *
      * @param array $entity Entity data
-     * @return array Entity with normalized image_url
+     * @return array Entity with normalized image_url and thumbnail_url
      */
     private function normalizeEntityImages(array $entity): array
     {
         if (isset($entity['image_url'])) {
             $entity['image_url'] = $this->normalizeImageUrl($entity['image_url']);
+        }
+        if (isset($entity['thumbnail_url'])) {
+            $entity['thumbnail_url'] = $this->normalizeImageUrl($entity['thumbnail_url']);
         }
         return $entity;
     }
@@ -146,6 +149,7 @@ class DatabaseOfThingsService
                             country
                             attributes
                             image_url
+                            thumbnail_url
                             external_ids
                             created_at
                             updated_at
@@ -194,6 +198,7 @@ class DatabaseOfThingsService
                                 country
                                 attributes
                                 image_url
+                                thumbnail_url
                                 external_ids
                             }
                         }
@@ -286,6 +291,7 @@ class DatabaseOfThingsService
                             country
                             attributes
                             image_url
+                            thumbnail_url
                             external_ids
                         }
                     }
@@ -340,6 +346,7 @@ class DatabaseOfThingsService
                             country
                             attributes
                             image_url
+                            thumbnail_url
                             external_ids
                         }
                     }
@@ -390,6 +397,7 @@ class DatabaseOfThingsService
                             country
                             attributes
                             image_url
+                            thumbnail_url
                             external_ids
                             created_at
                             updated_at
@@ -430,6 +438,7 @@ class DatabaseOfThingsService
                             country
                             attributes
                             image_url
+                            thumbnail_url
                             external_ids
                         }
                     }
@@ -457,16 +466,13 @@ class DatabaseOfThingsService
      */
     public function semanticSearch(string $queryText, ?string $entityType = null, int $limit = 20): array
     {
-        $url = $this->baseUrl . '/rest/v1/rpc/search_by_text';
+        $url = $this->baseUrl . '/rest/v1/rpc/search_entities_by_text';
 
         $payload = [
-            'query_text' => $queryText,
+            'search_query' => $queryText,
             'result_limit' => $limit,
+            'entity_type_filter' => $entityType,
         ];
-
-        if ($entityType !== null) {
-            $payload['entity_type_filter'] = $entityType;
-        }
 
         try {
             $response = $this->client->post($url, [

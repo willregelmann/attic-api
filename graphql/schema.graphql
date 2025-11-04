@@ -17,6 +17,7 @@ type Entity {
     country: String
     attributes: JSON
     image_url: String
+    thumbnail_url: String
     external_ids: JSON
     created_at: DateTime
     updated_at: DateTime
@@ -41,6 +42,16 @@ type EntityConnection {
 type EntityEdge {
     node: Entity!
     cursor: String!
+}
+
+# Filterable field discovered from collection descendants
+type FilterField {
+    field: String!
+    label: String!
+    type: String!
+    values: [String!]!
+    count: Int!
+    priority: Int!
 }
 
 # ===== END DATABASE OF THINGS TYPES =====
@@ -167,6 +178,7 @@ type UserItem {
     user_id: ID!
     entity_id: ID!
     metadata: JSON
+    notes: String
     created_at: DateTime!
     updated_at: DateTime!
 
@@ -195,7 +207,7 @@ type CollectionStats {
 
 # Collection with stats
 type CollectionWithStats {
-    collection: Item!
+    collection: Entity!
     stats: CollectionStats!
 }
 
@@ -253,8 +265,8 @@ type Query {
     # Current authenticated user
     me: User @auth(guard: "sanctum")
 
-    # User's owned items
-    myItems: [Item!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyItems")
+    # User's owned items (returns UserItem records with entity_id references)
+    myItems: [UserItem!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyItems")
 
     # User's favorite collections
     myFavoriteCollections: [CollectionWithStats!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyFavoriteCollections")
@@ -266,6 +278,9 @@ type Query {
     myCollectionItems(
         collection_id: ID!
     ): [UserItem!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyCollectionItems")
+
+    # All items in user's collection (with entity details)
+    myCollection: [Entity!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyCollectionItems")
 
     # Collection completion stats for user
     myCollectionStats(
@@ -313,6 +328,11 @@ type Query {
     databaseOfThingsItemParents(
         item_id: ID!
     ): [Entity!]! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\GetItemParents")
+
+    # Get filterable fields for a collection (recursively discovers from all descendants)
+    databaseOfThingsCollectionFilterFields(
+        collection_id: ID!
+    ): [FilterField!]! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\GetCollectionFilterFields")
 }
 
 type Mutation {
@@ -366,18 +386,20 @@ type Mutation {
     addItemToMyCollection(
         entity_id: ID!
         metadata: JSON
+        notes: String
     ): UserItem! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserItemMutations@addItemToMyCollection")
 
     # Update user's item metadata (entity_id references Database of Things entity)
     updateMyItem(
         entity_id: ID!
-        metadata: JSON!
+        metadata: JSON
+        notes: String
     ): UserItem! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserItemMutations@updateMyItem")
 
     # Remove item from user's collection (entity_id references Database of Things entity)
     removeItemFromMyCollection(
         entity_id: ID!
-    ): String! @guard
+    ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserItemMutations@removeItemFromMyCollection")
 
     # Favorite a collection
     favoriteCollection(

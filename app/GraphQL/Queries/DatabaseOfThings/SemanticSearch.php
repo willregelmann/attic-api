@@ -43,6 +43,7 @@ class SemanticSearch
                 'country' => $result['country'],
                 'attributes' => $result['attributes'] ?? [],
                 'image_url' => $result['image_url'] ?? null, // Already normalized by service
+                'thumbnail_url' => $result['thumbnail_url'] ?? null,
                 'external_ids' => [],
                 'created_at' => null,
                 'updated_at' => null,

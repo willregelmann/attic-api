@@ -34,6 +34,7 @@ class UserItemMutations
         $userItem->user_id = $userId;
         $userItem->entity_id = $args['entity_id'];
         $userItem->metadata = $args['metadata'] ?? null;
+        $userItem->notes = $args['notes'] ?? null;
         $userItem->save();
 
         // Load user relationship for GraphQL response
@@ -59,14 +60,43 @@ class UserItemMutations
             ->where('entity_id', $args['entity_id'])
             ->firstOrFail();
 
-        $userItem->metadata = array_merge(
-            $userItem->metadata ?? [],
-            $args['metadata']
-        );
+        if (isset($args['metadata'])) {
+            $userItem->metadata = array_merge(
+                $userItem->metadata ?? [],
+                $args['metadata']
+            );
+        }
+
+        if (isset($args['notes'])) {
+            $userItem->notes = $args['notes'];
+        }
+
         $userItem->save();
 
         $userItem->load(['user']);
 
         return $userItem;
+    }
+
+    /**
+     * Remove item from user's collection
+     */
+    public function removeItemFromMyCollection($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
+    {
+        $user = Auth::guard('sanctum')->user();
+
+        if (!$user) {
+            throw new \Exception('Unauthenticated');
+        }
+
+        $deleted = UserItem::where('user_id', $user->id)
+            ->where('entity_id', $args['entity_id'])
+            ->delete();
+
+        if ($deleted === 0) {
+            throw new \Exception('Item not found in your collection');
+        }
+
+        return 'Item removed from collection';
     }
 }
