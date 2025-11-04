@@ -16,8 +16,9 @@ class UserItem extends Pivot
 
     protected $fillable = [
         'user_id',
-        'entity_id', // References Supabase entity UUID
+        'entity_id', // References Database of Things entity UUID
         'metadata',
+        'notes',
     ];
 
     protected $casts = [
