@@ -3,9 +3,9 @@
 namespace App\GraphQL\Queries;
 
 use App\Services\DatabaseOfThingsService;
+use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use GraphQL\Type\Definition\ResolveInfo;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 class MyFavoriteCollections
@@ -21,7 +21,7 @@ class MyFavoriteCollections
     {
         $user = Auth::guard('sanctum')->user();
 
-        if (!$user) {
+        if (! $user) {
             throw new \Exception('Unauthenticated');
         }
 
@@ -43,18 +43,18 @@ class MyFavoriteCollections
         foreach ($favoriteCollectionIds as $collectionId) {
             $collection = $collections[$collectionId] ?? null;
 
-            if (!$collection) {
+            if (! $collection) {
                 continue; // Skip if collection not found in Database of Things
             }
 
             // Get all items in the collection from Database of Things
             $collectionItemsData = $this->databaseOfThingsService->getCollectionItems($collectionId, 1000);
-            $collectionItems = array_map(fn($item) => $item['entity'], $collectionItemsData['items']);
-            $collectionItemIds = array_map(fn($item) => $item['id'], $collectionItems);
+            $collectionItems = array_map(fn ($item) => $item['entity'], $collectionItemsData['items']);
+            $collectionItemIds = array_map(fn ($item) => $item['id'], $collectionItems);
 
             // Get user's owned items in this collection
-            $ownedItemsCount = $user->items()
-                ->whereIn('items.id', $collectionItemIds)
+            $ownedItemsCount = $user->userItems()
+                ->whereIn('entity_id', $collectionItemIds)
                 ->count();
 
             $totalItems = count($collectionItems);
