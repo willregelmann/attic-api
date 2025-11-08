@@ -6,6 +6,7 @@ use App\Services\ImageUploadService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class ImageUploadServiceTest extends TestCase
@@ -115,5 +116,37 @@ class ImageUploadServiceTest extends TestCase
         Storage::disk('public')->assertExists($results[0]['thumbnail']);
 
         $this->assertNotNull($results[0]['thumbnail']);
+    }
+
+    #[Test]
+    public function it_deletes_images_from_storage()
+    {
+        $userItemId = '123e4567-e89b-12d3-a456-426614174000';
+        $file = UploadedFile::fake()->image('photo.jpg');
+
+        $results = $this->service->processAndStoreImages([$file], $userItemId);
+
+        // Verify files exist
+        Storage::disk('public')->assertExists($results[0]['original']);
+        Storage::disk('public')->assertExists($results[0]['thumbnail']);
+
+        // Delete images
+        $this->service->deleteImages($results);
+
+        // Verify files are gone
+        Storage::disk('public')->assertMissing($results[0]['original']);
+        Storage::disk('public')->assertMissing($results[0]['thumbnail']);
+    }
+
+    #[Test]
+    public function it_handles_missing_files_gracefully_during_deletion()
+    {
+        $images = [
+            ['original' => 'nonexistent/file.jpg', 'thumbnail' => 'nonexistent/thumb.jpg'],
+        ];
+
+        // Should not throw exception
+        $this->service->deleteImages($images);
+        $this->assertTrue(true);
     }
 }

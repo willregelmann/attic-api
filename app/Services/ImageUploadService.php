@@ -2,12 +2,13 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Intervention\Image\ImageManager;
 use Intervention\Image\Drivers\Gd\Driver;
+use Intervention\Image\ImageManager;
 
 class ImageUploadService
 {
@@ -62,7 +63,7 @@ class ImageUploadService
     public function processAndStoreImages(array $files, string $userItemId): array
     {
         $results = [];
-        $manager = new ImageManager(new Driver());
+        $manager = new ImageManager(new Driver);
 
         foreach ($files as $index => $file) {
             $filename = Str::uuid();
@@ -100,5 +101,57 @@ class ImageUploadService
         }
 
         return $results;
+    }
+
+    /**
+     * Delete images from storage
+     *
+     * @param  array  $images  Array of ['original' => path, 'thumbnail' => path]
+     */
+    public function deleteImages(array $images): void
+    {
+        foreach ($images as $imagePair) {
+            try {
+                Storage::disk('public')->delete($imagePair['original']);
+            } catch (\Exception $e) {
+                Log::warning("Failed to delete original image: {$imagePair['original']}", [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            try {
+                Storage::disk('public')->delete($imagePair['thumbnail']);
+            } catch (\Exception $e) {
+                Log::warning("Failed to delete thumbnail: {$imagePair['thumbnail']}", [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Remove specific images by index from existing images array
+     *
+     * @param  array  $existingImages  Full images array from user item
+     * @param  array  $indicesToRemove  Array of indices to remove
+     * @return array Updated images array and deleted images
+     */
+    public function removeImagesByIndices(array $existingImages, array $indicesToRemove): array
+    {
+        $toDelete = [];
+        $remaining = [];
+
+        foreach ($existingImages as $index => $image) {
+            if (in_array($index, $indicesToRemove)) {
+                $toDelete[] = $image;
+            } else {
+                $remaining[] = $image;
+            }
+        }
+
+        // Delete the files
+        $this->deleteImages($toDelete);
+
+        return $remaining;
     }
 }
