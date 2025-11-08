@@ -149,4 +149,51 @@ class ImageUploadServiceTest extends TestCase
         $this->service->deleteImages($images);
         $this->assertTrue(true);
     }
+
+    #[Test]
+    public function it_removes_images_by_indices()
+    {
+        $userItemId = '123e4567-e89b-12d3-a456-426614174000';
+
+        // Create 5 test images
+        $files = [];
+        for ($i = 0; $i < 5; $i++) {
+            $files[] = UploadedFile::fake()->image("photo{$i}.jpg");
+        }
+
+        $existingImages = $this->service->processAndStoreImages($files, $userItemId);
+
+        // Verify all 5 images exist
+        $this->assertCount(5, $existingImages);
+        foreach ($existingImages as $image) {
+            Storage::disk('public')->assertExists($image['original']);
+            Storage::disk('public')->assertExists($image['thumbnail']);
+        }
+
+        // Remove images at indices 1 and 3
+        $indicesToRemove = [1, 3];
+        $remaining = $this->service->removeImagesByIndices($existingImages, $indicesToRemove);
+
+        // Verify the correct number of images remain
+        $this->assertCount(3, $remaining);
+
+        // Verify the remaining images are the correct ones (indices 0, 2, 4)
+        $this->assertEquals($existingImages[0], $remaining[0]);
+        $this->assertEquals($existingImages[2], $remaining[1]);
+        $this->assertEquals($existingImages[4], $remaining[2]);
+
+        // Verify removed images (indices 1 and 3) are deleted from storage
+        Storage::disk('public')->assertMissing($existingImages[1]['original']);
+        Storage::disk('public')->assertMissing($existingImages[1]['thumbnail']);
+        Storage::disk('public')->assertMissing($existingImages[3]['original']);
+        Storage::disk('public')->assertMissing($existingImages[3]['thumbnail']);
+
+        // Verify remaining images still exist in storage
+        Storage::disk('public')->assertExists($remaining[0]['original']);
+        Storage::disk('public')->assertExists($remaining[0]['thumbnail']);
+        Storage::disk('public')->assertExists($remaining[1]['original']);
+        Storage::disk('public')->assertExists($remaining[1]['thumbnail']);
+        Storage::disk('public')->assertExists($remaining[2]['original']);
+        Storage::disk('public')->assertExists($remaining[2]['thumbnail']);
+    }
 }
