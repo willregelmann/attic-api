@@ -13,9 +13,12 @@ return new class extends Migration
     {
         // Drop legacy tables that are no longer used after Supabase migration
         // Canonical data now comes from external Database of Things API
-        Schema::dropIfExists('item_relationships');
-        Schema::dropIfExists('item_images');
-        Schema::dropIfExists('items');
+
+        // Use CASCADE to drop tables with all their dependencies
+        \DB::statement('DROP TABLE IF EXISTS item_relationships CASCADE');
+        \DB::statement('DROP TABLE IF EXISTS item_images CASCADE');
+        \DB::statement('DROP TABLE IF EXISTS collection_maintainers CASCADE');
+        \DB::statement('DROP TABLE IF EXISTS items CASCADE');
     }
 
     /**

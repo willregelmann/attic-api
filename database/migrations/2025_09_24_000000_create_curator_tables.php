@@ -59,10 +59,10 @@ return new class extends Migration
             
             $table->timestamps();
             
-            $table->foreign('collection_id')->references('id')->on('items')->onDelete('cascade');
+            // Note: collection_id references external Supabase collection, no foreign key
             $table->index(['status', 'next_run_at']); // For job scheduling
         });
-        
+
         // Store curator suggestions
         Schema::create('curator_suggestions', function (Blueprint $table) {
             $table->uuid('id')->primary();
@@ -107,8 +107,7 @@ return new class extends Migration
             $table->timestamp('expires_at')->nullable();
             
             $table->foreign('curator_id')->references('id')->on('collection_curators')->onDelete('cascade');
-            $table->foreign('collection_id')->references('id')->on('items')->onDelete('cascade');
-            $table->foreign('item_id')->references('id')->on('items')->onDelete('set null');
+            // Note: collection_id and item_id reference external Supabase entities, no foreign keys
             $table->foreign('reviewed_by')->references('id')->on('users')->onDelete('set null');
             
             $table->index(['status', 'created_at']);

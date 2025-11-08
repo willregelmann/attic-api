@@ -11,13 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('item_relationships', function (Blueprint $table) {
-            // Add canonical_order column for maintaining item order within collections
-            $table->integer('canonical_order')->nullable()->after('relationship_type');
-
-            // Add index for efficient sorting
-            $table->index(['parent_id', 'canonical_order']);
-        });
+        // Legacy table - item_relationships no longer exists after Supabase migration
+        // Skipping modification
     }
 
     /**

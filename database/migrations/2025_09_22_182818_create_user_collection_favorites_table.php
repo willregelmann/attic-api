@@ -18,7 +18,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->foreign('collection_id')->references('id')->on('items')->onDelete('cascade');
+            // Note: collection_id references external Supabase collection, no foreign key
 
             $table->unique(['user_id', 'collection_id']);
             $table->index('user_id');

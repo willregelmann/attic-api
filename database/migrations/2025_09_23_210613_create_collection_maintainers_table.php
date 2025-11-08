@@ -11,22 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('collection_maintainers', function (Blueprint $table) {
-            $table->id();
-            $table->uuid('collection_id');
-            $table->uuid('user_id');
-            $table->string('role')->default('maintainer'); // maintainer, owner, contributor
-            $table->json('permissions')->nullable(); // specific permissions if needed
-            $table->timestamps();
-
-            // Indexes
-            $table->foreign('collection_id')->references('id')->on('items')->onDelete('cascade');
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->unique(['collection_id', 'user_id']);
-
-            $table->index(['collection_id']);
-            $table->index(['user_id']);
-        });
+        // Legacy table - no longer needed after Supabase migration
+        // Table will be dropped by 2025_11_05_132223_drop_legacy_items_tables migration
+        // Skipping creation to avoid foreign key issues during testing
     }
 
     /**

@@ -11,13 +11,34 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('user_items', function (Blueprint $table) {
-            // Drop foreign key constraint - entity_id references external Database of Things, not local items table
-            $table->dropForeign(['entity_id']);
+        // Check and drop foreign key if it exists
+        $foreignKeys = \DB::select("
+            SELECT constraint_name
+            FROM information_schema.table_constraints
+            WHERE table_name = 'user_items'
+            AND constraint_type = 'FOREIGN KEY'
+            AND constraint_name = 'user_items_entity_id_foreign'
+        ");
 
-            // Also drop the index created by the foreign key
-            $table->dropIndex(['entity_id']);
-        });
+        if (!empty($foreignKeys)) {
+            Schema::table('user_items', function (Blueprint $table) {
+                $table->dropForeign(['entity_id']);
+            });
+        }
+
+        // Check and drop index if it exists (and isn't the unique constraint)
+        $indexes = \DB::select("
+            SELECT indexname
+            FROM pg_indexes
+            WHERE tablename = 'user_items'
+            AND indexname = 'user_items_entity_id_index'
+        ");
+
+        if (!empty($indexes)) {
+            Schema::table('user_items', function (Blueprint $table) {
+                $table->dropIndex(['entity_id']);
+            });
+        }
     }
 
     /**

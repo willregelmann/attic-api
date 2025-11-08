@@ -19,7 +19,8 @@ return new class extends Migration
             $table->timestamps();
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->foreign('item_id')->references('id')->on('items')->onDelete('cascade');
+            // Note: item_id references external Supabase entity, no foreign key
+            // Will be renamed to entity_id in later migration
 
             $table->index('user_id');
             $table->index('item_id');
