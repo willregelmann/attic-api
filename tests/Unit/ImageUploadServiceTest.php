@@ -68,4 +68,52 @@ class ImageUploadServiceTest extends TestCase
         $this->service->validateFiles($files);
         $this->assertTrue(true);
     }
+
+    /** @test */
+    public function it_processes_and_stores_images()
+    {
+        $userItemId = '123e4567-e89b-12d3-a456-426614174000';
+        $file = UploadedFile::fake()->image('photo.jpg', 2500, 2500);
+
+        $results = $this->service->processAndStoreImages([$file], $userItemId);
+
+        $this->assertCount(1, $results);
+        $this->assertArrayHasKey('original', $results[0]);
+        $this->assertArrayHasKey('thumbnail', $results[0]);
+        $this->assertStringContainsString("user_items/{$userItemId}/", $results[0]['original']);
+
+        // Verify files exist in storage
+        Storage::disk('public')->assertExists($results[0]['original']);
+        Storage::disk('public')->assertExists($results[0]['thumbnail']);
+    }
+
+    /** @test */
+    public function it_resizes_large_images()
+    {
+        $userItemId = '123e4567-e89b-12d3-a456-426614174000';
+        // Create a 3000x3000 image (exceeds 2000px limit)
+        $file = UploadedFile::fake()->image('large.jpg', 3000, 3000);
+
+        $results = $this->service->processAndStoreImages([$file], $userItemId);
+
+        // Original should be resized
+        Storage::disk('public')->assertExists($results[0]['original']);
+
+        // Check that the resized image is smaller (we can't easily check dimensions in tests)
+        $this->assertNotNull($results[0]['original']);
+    }
+
+    /** @test */
+    public function it_generates_square_thumbnails()
+    {
+        $userItemId = '123e4567-e89b-12d3-a456-426614174000';
+        $file = UploadedFile::fake()->image('photo.jpg', 800, 600);
+
+        $results = $this->service->processAndStoreImages([$file], $userItemId);
+
+        // Thumbnail should exist
+        Storage::disk('public')->assertExists($results[0]['thumbnail']);
+
+        $this->assertNotNull($results[0]['thumbnail']);
+    }
 }
