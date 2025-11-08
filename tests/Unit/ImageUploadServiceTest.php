@@ -18,7 +18,7 @@ class ImageUploadServiceTest extends TestCase
     {
         parent::setUp();
         Storage::fake('public');
-        $this->service = new ImageUploadService();
+        $this->service = new ImageUploadService;
     }
 
     /** @test */
