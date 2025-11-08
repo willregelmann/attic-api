@@ -12,6 +12,7 @@ class UserItem extends Pivot
     protected $table = 'user_items';
 
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -19,10 +20,12 @@ class UserItem extends Pivot
         'entity_id', // References Database of Things entity UUID
         'metadata',
         'notes',
+        'images',
     ];
 
     protected $casts = [
         'metadata' => 'array',
+        'images' => 'array',
     ];
 
     /**
