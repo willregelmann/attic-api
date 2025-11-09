@@ -12,11 +12,13 @@ class Wishlist extends Model
     protected $table = 'wishlists';
 
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
         'user_id',
         'entity_id', // References Supabase entity UUID
+        'parent_collection_id',
     ];
 
     /**
@@ -25,6 +27,14 @@ class Wishlist extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the parent collection
+     */
+    public function parentCollection()
+    {
+        return $this->belongsTo(UserCollection::class, 'parent_collection_id');
     }
 
     /**

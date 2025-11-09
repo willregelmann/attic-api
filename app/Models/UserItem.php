@@ -18,6 +18,7 @@ class UserItem extends Pivot
     protected $fillable = [
         'user_id',
         'entity_id', // References Database of Things entity UUID
+        'parent_collection_id',
         'metadata',
         'notes',
         'images',
@@ -34,6 +35,14 @@ class UserItem extends Pivot
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the parent collection
+     */
+    public function parentCollection()
+    {
+        return $this->belongsTo(UserCollection::class, 'parent_collection_id');
     }
 
     /**

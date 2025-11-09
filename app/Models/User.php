@@ -5,7 +5,6 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -14,7 +13,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasUuids, HasApiTokens;
+    use HasApiTokens, HasFactory, HasUuids, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -55,66 +54,42 @@ class User extends Authenticatable
      * Get user items (references to Supabase entities)
      * Note: entity_id references Supabase entity UUID - no local Item relationship
      */
-    public function userItems()
+    public function userItems(): HasMany
     {
         return $this->hasMany(UserItem::class);
     }
 
     /**
-     * Legacy relationship - deprecated
-     * User items now reference Supabase entities via entity_id
-     * Use userItems() instead
+     * Get favorite collections for this user
+     * Note: collection_id references Supabase collection UUID
      */
-    public function items()
+    public function favoriteCollections(): HasMany
     {
-        return $this->belongsToMany(Item::class, 'user_items')
-            ->withPivot('metadata')
-            ->withTimestamps()
-            ->using(UserItem::class);
-    }
-
-    /**
-     * Get collections favorited by this user
-     */
-    public function favoriteCollections()
-    {
-        return $this->belongsToMany(Item::class, 'user_collection_favorites', 'user_id', 'collection_id')
-            ->select('items.*')
-            ->withTimestamps()
-            ->using(UserCollectionFavorite::class);
+        return $this->hasMany(UserCollectionFavorite::class);
     }
 
     /**
      * Get API tokens belonging to this user
      */
-    public function apiTokens()
+    public function apiTokens(): HasMany
     {
         return $this->hasMany(ApiToken::class);
     }
 
     /**
-     * Get images uploaded by this user
-     */
-    public function uploadedImages()
-    {
-        return $this->hasMany(ItemImage::class);
-    }
-
-    /**
-     * Get wishlist items for this user
-     */
-    public function wishlistItems()
-    {
-        return $this->belongsToMany(Item::class, 'wishlists')
-            ->withTimestamps()
-            ->using(Wishlist::class);
-    }
-
-    /**
      * Get wishlist entries for this user
+     * Note: entity_id references Supabase entity UUID
      */
-    public function wishlists()
+    public function wishlists(): HasMany
     {
         return $this->hasMany(Wishlist::class);
+    }
+
+    /**
+     * Get user's custom collections
+     */
+    public function userCollections(): HasMany
+    {
+        return $this->hasMany(UserCollection::class);
     }
 }
