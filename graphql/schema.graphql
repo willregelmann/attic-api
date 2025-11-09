@@ -70,6 +70,9 @@ type User {
     email_verified_at: DateTime
     created_at: DateTime!
     updated_at: DateTime!
+
+    "User's custom collections"
+    userCollections: [UserCollection!]! @hasMany
 }
 
 # User item ownership (pivot with metadata)
@@ -162,6 +165,110 @@ type ApiToken {
 type ApiTokenPayload {
     token: String!
     apiToken: ApiToken!
+}
+
+# Wishlist entry with full entity data (for My Wishlist view)
+# Combines Wishlist fields with Entity data from Database of Things
+type WishlistWithEntity {
+    # Wishlist fields
+    wishlist_id: ID!
+    user_id: ID!
+    wishlist_created_at: DateTime!
+    wishlist_updated_at: DateTime!
+
+    # Entity fields (from Database of Things)
+    id: ID!
+    type: String!
+    name: String!
+    year: Int
+    country: String
+    attributes: JSON
+    image_url: String
+    thumbnail_url: String
+    representative_image_urls: [String!]
+    external_ids: JSON
+    created_at: DateTime
+    updated_at: DateTime
+}
+
+"""
+User's custom collection for organizing owned and wishlisted items
+"""
+type UserCollection {
+    id: ID!
+    user_id: ID!
+    parent_collection_id: ID
+    name: String!
+    description: String
+    custom_image: String
+    linked_dbot_collection_id: ID
+
+    "User who owns this collection"
+    user: User! @belongsTo
+
+    "Parent collection (null for root-level collections)"
+    parent: UserCollection @belongsTo(relation: "parent")
+
+    "Child collections nested within this collection"
+    subcollections: [UserCollection!]! @hasMany(relation: "subcollections")
+
+    "Owned items directly in this collection (non-recursive)"
+    items: [UserItemWithEntity!]! @hasMany(relation: "items")
+
+    "Wishlisted items directly in this collection (non-recursive)"
+    wishlists: [WishlistWithEntity!]! @hasMany(relation: "wishlists")
+
+    "Progress statistics for this collection"
+    progress: CollectionProgress!
+
+    "Representative images for collection thumbnail (up to 4 images)"
+    representative_images: [String!]!
+
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+"""
+Collection progress statistics
+"""
+type CollectionProgress {
+    "Number of owned items in collection"
+    owned_count: Int!
+
+    "Number of wishlisted items in collection"
+    wishlist_count: Int!
+
+    "Total items (owned + wishlist)"
+    total_count: Int!
+
+    "Completion percentage (owned / total * 100)"
+    percentage: Float!
+
+    "Items owned that exist in linked Database of Things collection (null if not linked)"
+    official_owned_count: Int
+
+    "Total items in linked Database of Things collection (null if not linked)"
+    official_total_count: Int
+
+    "Official set completion percentage (null if not linked)"
+    official_percentage: Float
+}
+
+"""
+View of a user's collection tree at a specific level
+"""
+type UserCollectionView {
+    "Collections at this level"
+    collections: [UserCollection!]!
+
+    "Owned items at this level (not in any subcollection)"
+    items: [UserItemWithEntity!]!
+
+    "Wishlisted items at this level (not in any subcollection)"
+    wishlists: [WishlistWithEntity!]!
+
+    "Current collection (null for root level)"
+    current_collection: UserCollection
 }
 
 # ===== END USER & AUTH TYPES =====
