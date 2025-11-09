@@ -219,10 +219,10 @@ type UserCollection {
     wishlists: [WishlistWithEntity!]! @hasMany(relation: "wishlists")
 
     "Progress statistics for this collection"
-    progress: CollectionProgress!
+    progress: CollectionProgress! @field(resolver: "App\\GraphQL\\FieldResolvers\\UserCollectionProgressResolver")
 
     "Representative images for collection thumbnail (up to 4 images)"
-    representative_images: [String!]!
+    representative_images: [String!]! @field(resolver: "App\\GraphQL\\FieldResolvers\\UserCollectionRepresentativeImagesResolver")
 
     created_at: DateTime!
     updated_at: DateTime!
