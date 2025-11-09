@@ -94,4 +94,68 @@ class UserCollectionService
             'percentage' => $percentage,
         ];
     }
+
+    /**
+     * Calculate progress for a collection (includes all descendants recursively)
+     *
+     * @param string $collectionId
+     * @return array{owned_count: int, wishlist_count: int, total_count: int, percentage: float}
+     */
+    public function calculateProgress(string $collectionId): array
+    {
+        $ownedCount = $this->countOwnedItemsRecursive($collectionId);
+        $wishlistCount = $this->countWishlistedItemsRecursive($collectionId);
+        $totalCount = $ownedCount + $wishlistCount;
+
+        $percentage = $totalCount > 0
+            ? round(($ownedCount / $totalCount) * 100, 2)
+            : 0;
+
+        return [
+            'owned_count' => $ownedCount,
+            'wishlist_count' => $wishlistCount,
+            'total_count' => $totalCount,
+            'percentage' => $percentage,
+        ];
+    }
+
+    /**
+     * Count owned items recursively including all descendants
+     *
+     * @param string $collectionId
+     * @return int
+     */
+    protected function countOwnedItemsRecursive(string $collectionId): int
+    {
+        // Count direct children
+        $count = UserItem::where('parent_collection_id', $collectionId)->count();
+
+        // Get subcollections and recursively count their items
+        $subcollections = UserCollection::where('parent_collection_id', $collectionId)->get();
+        foreach ($subcollections as $subcollection) {
+            $count += $this->countOwnedItemsRecursive($subcollection->id);
+        }
+
+        return $count;
+    }
+
+    /**
+     * Count wishlisted items recursively including all descendants
+     *
+     * @param string $collectionId
+     * @return int
+     */
+    protected function countWishlistedItemsRecursive(string $collectionId): int
+    {
+        // Count direct children
+        $count = Wishlist::where('parent_collection_id', $collectionId)->count();
+
+        // Get subcollections and recursively count their items
+        $subcollections = UserCollection::where('parent_collection_id', $collectionId)->get();
+        foreach ($subcollections as $subcollection) {
+            $count += $this->countWishlistedItemsRecursive($subcollection->id);
+        }
+
+        return $count;
+    }
 }
