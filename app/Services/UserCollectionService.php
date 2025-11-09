@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\UserCollection;
+use App\Models\UserItem;
+use App\Models\Wishlist;
 use Illuminate\Support\Collection;
 
 class UserCollectionService
@@ -67,5 +69,29 @@ class UserCollectionService
         }
 
         return $descendants;
+    }
+
+    /**
+     * Calculate simple progress for a collection (direct children only)
+     *
+     * @param string $collectionId
+     * @return array{owned_count: int, wishlist_count: int, total_count: int, percentage: float}
+     */
+    public function calculateSimpleProgress(string $collectionId): array
+    {
+        $ownedCount = UserItem::where('parent_collection_id', $collectionId)->count();
+        $wishlistCount = Wishlist::where('parent_collection_id', $collectionId)->count();
+        $totalCount = $ownedCount + $wishlistCount;
+
+        $percentage = $totalCount > 0
+            ? round(($ownedCount / $totalCount) * 100, 2)
+            : 0;
+
+        return [
+            'owned_count' => $ownedCount,
+            'wishlist_count' => $wishlistCount,
+            'total_count' => $totalCount,
+            'percentage' => $percentage,
+        ];
     }
 }
