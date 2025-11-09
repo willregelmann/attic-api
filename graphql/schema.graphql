@@ -445,11 +445,11 @@ type Mutation {
     Create a new user collection
     """
     createUserCollection(
-        name: String! @rules(apply: ["required", "min:1"])
-        description: String
-        parent_id: ID
-        linked_dbot_collection_id: ID
-        custom_image: Upload
+        name: String! @rules(apply: ["required", "min:1", "max:255"])
+        description: String @rules(apply: ["max:1000"])
+        parent_id: ID @rules(apply: ["uuid"])
+        linked_dbot_collection_id: ID @rules(apply: ["uuid"])
+        custom_image: Upload @rules(apply: ["image", "max:2048"])
     ): UserCollection!
         @guard
         @field(resolver: "App\\GraphQL\\Mutations\\CreateUserCollection")

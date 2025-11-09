@@ -6,6 +6,7 @@ use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use App\Models\User;
 use App\Models\UserCollection;
+use Illuminate\Http\UploadedFile;
 
 class CreateUserCollectionTest extends TestCase
 {
@@ -172,18 +173,52 @@ class CreateUserCollectionTest extends TestCase
             ],
         ]);
 
-        // Check for error message
+        // Check for GraphQL UserError message (not internal server error)
         $response->assertJson([
             'errors' => [
                 [
-                    'message' => 'Internal server error',
+                    'message' => 'Parent collection not found or access denied',
+                ],
+            ],
+        ]);
+    }
+
+    public function test_create_user_collection_without_custom_image()
+    {
+        $user = User::factory()->create();
+
+        // Test that custom_image is optional and can be omitted
+        $response = $this->actingAs($user, 'sanctum')->postJson('/graphql', [
+            'query' => '
+                mutation($name: String!) {
+                    createUserCollection(
+                        name: $name
+                    ) {
+                        id
+                        name
+                        custom_image
+                    }
+                }
+            ',
+            'variables' => [
+                'name' => 'Collection without Image',
+            ],
+        ]);
+
+        $response->assertJson([
+            'data' => [
+                'createUserCollection' => [
+                    'name' => 'Collection without Image',
+                    'custom_image' => null,
                 ],
             ],
         ]);
 
-        // Check the debug message contains our error
-        $response->assertJsonFragment([
-            'debugMessage' => 'Parent collection not found or access denied',
+        // Verify collection was created
+        $this->assertDatabaseHas('user_collections', [
+            'name' => 'Collection without Image',
+            'user_id' => $user->id,
+            'custom_image' => null,
         ]);
     }
 }

@@ -3,6 +3,8 @@
 namespace App\GraphQL\Mutations;
 
 use App\Models\UserCollection;
+use GraphQL\Error\UserError;
+use Illuminate\Support\Facades\Storage;
 
 class CreateUserCollection
 {
@@ -17,7 +19,7 @@ class CreateUserCollection
                 ->first();
 
             if (!$parent) {
-                throw new \Exception('Parent collection not found or access denied');
+                throw new UserError('Parent collection not found or access denied');
             }
         }
 
@@ -26,7 +28,7 @@ class CreateUserCollection
         if (isset($args['custom_image'])) {
             // Store uploaded file (Laravel handles UploadedFile)
             $path = $args['custom_image']->store('collection-images', 'public');
-            $customImage = asset('storage/' . $path);
+            $customImage = Storage::disk('public')->url($path);
         }
 
         // Create collection
