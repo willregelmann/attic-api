@@ -352,7 +352,7 @@ type Query {
     """
     myCollectionTree(parent_id: ID): UserCollectionView!
         @guard
-        @field(resolver: "App\\GraphQL\\Queries\\MyCollectionTree@resolve")
+        @field(resolver: "App\\GraphQL\\Queries\\MyCollectionTree")
 }
 
 type Mutation {
