@@ -23,25 +23,25 @@ class UserCollectionRepresentativeImagesResolver
             return [$collection->custom_image];
         }
 
-        // Get first 5 items (owned + wishlisted) to determine if there are more than 4
+        // Get first 4 items (owned + wishlisted)
         $items = UserItem::where('parent_collection_id', $collection->id)
-            ->take(5)
+            ->take(4)
             ->get();
 
         $wishlists = Wishlist::where('parent_collection_id', $collection->id)
-            ->take(max(0, 5 - $items->count()))
+            ->take(max(0, 4 - $items->count()))
             ->get();
 
         // Collect entity IDs
         $entityIds = [];
         foreach ($items as $item) {
             $entityIds[] = $item->entity_id;
-            if (count($entityIds) >= 5) break;
+            if (count($entityIds) >= 4) break;
         }
 
         foreach ($wishlists as $wishlist) {
             $entityIds[] = $wishlist->entity_id;
-            if (count($entityIds) >= 5) break;
+            if (count($entityIds) >= 4) break;
         }
 
         // If no entity IDs, return empty array
@@ -59,9 +59,10 @@ class UserCollectionRepresentativeImagesResolver
             if ($entity && isset($entity['image_url']) && $entity['image_url']) {
                 $images[] = $entity['image_url'];
             }
-            if (count($images) >= 5) break;
+            if (count($images) >= 4) break;
         }
 
-        return $images;
+        // Ensure we return maximum 4 images
+        return array_slice($images, 0, 4);
     }
 }
