@@ -453,4 +453,14 @@ type Mutation {
     ): UserCollection!
         @guard
         @field(resolver: "App\\GraphQL\\Mutations\\CreateUserCollection")
+
+    """
+    Move a collection to a different parent (or root level)
+    """
+    moveUserCollection(
+        id: ID! @rules(apply: ["required", "uuid"])
+        new_parent_id: ID @rules(apply: ["uuid"])
+    ): UserCollection!
+        @guard
+        @field(resolver: "App\\GraphQL\\Mutations\\MoveUserCollection")
 }
