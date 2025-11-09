@@ -463,4 +463,24 @@ type Mutation {
     ): UserCollection!
         @guard
         @field(resolver: "App\\GraphQL\\Mutations\\MoveUserCollection")
+
+    """
+    Delete a collection
+    If delete_contents is false, moves contents to parent collection
+    If delete_contents is true, moves contents to root level (preserves user data)
+    """
+    deleteUserCollection(
+        id: ID! @rules(apply: ["required", "uuid"])
+        delete_contents: Boolean!
+    ): DeleteResult!
+        @guard
+        @field(resolver: "App\\GraphQL\\Mutations\\DeleteUserCollection")
+}
+
+"""
+Result of a delete operation
+"""
+type DeleteResult {
+    success: Boolean!
+    message: String
 }
