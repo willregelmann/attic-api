@@ -438,4 +438,19 @@ type Mutation {
     revokeApiToken(
         id: ID! @rules(apply: ["required", "exists:api_tokens,id"])
     ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\ApiTokenMutations@revokeToken")
+
+    # ===== USER COLLECTION MANAGEMENT (Auth required) =====
+
+    """
+    Create a new user collection
+    """
+    createUserCollection(
+        name: String! @rules(apply: ["required", "min:1"])
+        description: String
+        parent_id: ID
+        linked_dbot_collection_id: ID
+        custom_image: Upload
+    ): UserCollection!
+        @guard
+        @field(resolver: "App\\GraphQL\\Mutations\\CreateUserCollection")
 }
