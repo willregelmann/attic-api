@@ -81,6 +81,7 @@ type UserItem {
     id: ID!
     user_id: ID!
     entity_id: ID!
+    parent_collection_id: ID
     metadata: JSON
     notes: String
     images: JSON  # Array of {original, thumbnail} objects
@@ -123,6 +124,7 @@ type Wishlist {
     id: ID!
     user_id: ID!
     entity_id: ID!
+    parent_collection_id: ID
     created_at: DateTime!
     updated_at: DateTime!
 
@@ -475,6 +477,26 @@ type Mutation {
     ): DeleteResult!
         @guard
         @field(resolver: "App\\GraphQL\\Mutations\\DeleteUserCollection")
+
+    """
+    Move a user item to a different collection (or root level)
+    """
+    moveUserItem(
+        item_id: ID! @rules(apply: ["required", "uuid"])
+        new_parent_collection_id: ID @rules(apply: ["uuid"])
+    ): UserItem!
+        @guard
+        @field(resolver: "App\\GraphQL\\Mutations\\MoveUserItem")
+
+    """
+    Move a wishlist item to a different collection (or root level)
+    """
+    moveWishlistItem(
+        wishlist_id: ID! @rules(apply: ["required", "uuid"])
+        new_parent_collection_id: ID @rules(apply: ["uuid"])
+    ): Wishlist!
+        @guard
+        @field(resolver: "App\\GraphQL\\Mutations\\MoveWishlistItem")
 }
 
 """
