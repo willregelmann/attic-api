@@ -345,6 +345,14 @@ type Query {
 
     # User's wishlist items
     myWishlist: [Wishlist!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyWishlist")
+
+    """
+    Get user's collection tree at a specific level
+    Returns collections, items, and wishlists at the specified parent level
+    """
+    myCollectionTree(parent_id: ID): UserCollectionView!
+        @guard
+        @field(resolver: "App\\GraphQL\\Queries\\MyCollectionTree@resolve")
 }
 
 type Mutation {
