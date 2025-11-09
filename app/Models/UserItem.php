@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
 class UserItem extends Pivot
@@ -40,7 +41,7 @@ class UserItem extends Pivot
     /**
      * Get the parent collection
      */
-    public function parentCollection()
+    public function parentCollection(): BelongsTo
     {
         return $this->belongsTo(UserCollection::class, 'parent_collection_id');
     }
