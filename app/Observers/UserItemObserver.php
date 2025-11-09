@@ -15,13 +15,13 @@ class UserItemObserver
     {
         // Remove the item from the user's wishlist if it exists
         $deleted = Wishlist::where('user_id', $userItem->user_id)
-            ->where('item_id', $userItem->item_id)
+            ->where('entity_id', $userItem->entity_id)
             ->delete();
 
         if ($deleted) {
             Log::info('Item removed from wishlist after being added to collection', [
                 'user_id' => $userItem->user_id,
-                'item_id' => $userItem->item_id
+                'entity_id' => $userItem->entity_id
             ]);
         }
     }

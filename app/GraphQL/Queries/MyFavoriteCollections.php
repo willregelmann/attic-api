@@ -47,6 +47,38 @@ class MyFavoriteCollections
             1000 // Fetch up to 1000 items per collection
         );
 
+        // Build map of collection ID => item IDs for each collection
+        $collectionItemIdsMap = [];
+        foreach ($favoriteCollectionIds as $collectionId) {
+            $collectionItemsData = $allCollectionItems[$collectionId] ?? ['items' => []];
+            $collectionItems = array_map(fn ($item) => $item['entity'], $collectionItemsData['items']);
+            $collectionItemIdsMap[$collectionId] = array_map(fn ($item) => $item['id'], $collectionItems);
+        }
+
+        // OPTIMIZATION: Single query to get owned item counts for ALL collections
+        // Collect all unique entity IDs across all collections
+        $allEntityIds = array_unique(array_merge(...array_values($collectionItemIdsMap)));
+
+        // Get counts of owned items grouped by collection
+        // This replaces N queries (one per collection) with a SINGLE query
+        $ownedItemsMap = [];
+        if (!empty($allEntityIds)) {
+            $ownedItems = $user->userItems()
+                ->whereIn('entity_id', $allEntityIds)
+                ->get(['entity_id']);
+
+            // Build map of entity_id => true for O(1) lookup
+            $ownedEntitySet = array_flip($ownedItems->pluck('entity_id')->toArray());
+
+            // Count owned items for each collection
+            foreach ($collectionItemIdsMap as $collectionId => $itemIds) {
+                $ownedItemsMap[$collectionId] = count(array_intersect_key(
+                    array_flip($itemIds),
+                    $ownedEntitySet
+                ));
+            }
+        }
+
         $result = [];
 
         foreach ($favoriteCollectionIds as $collectionId) {
@@ -56,17 +88,10 @@ class MyFavoriteCollections
                 continue; // Skip if collection not found in Database of Things
             }
 
-            // Get pre-fetched collection items (already loaded in parallel above)
-            $collectionItemsData = $allCollectionItems[$collectionId] ?? ['items' => []];
-            $collectionItems = array_map(fn ($item) => $item['entity'], $collectionItemsData['items']);
-            $collectionItemIds = array_map(fn ($item) => $item['id'], $collectionItems);
+            $collectionItemIds = $collectionItemIdsMap[$collectionId] ?? [];
+            $ownedItemsCount = $ownedItemsMap[$collectionId] ?? 0;
 
-            // Get user's owned items in this collection
-            $ownedItemsCount = $user->userItems()
-                ->whereIn('entity_id', $collectionItemIds)
-                ->count();
-
-            $totalItems = count($collectionItems);
+            $totalItems = count($collectionItemIds);
             $completionPercentage = $totalItems > 0
                 ? round(($ownedItemsCount / $totalItems) * 100, 2)
                 : 0;

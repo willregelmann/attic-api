@@ -20,10 +20,7 @@ class GetCollectionFilterFields
      * Get filterable fields for a collection (recursively from all descendants)
      * Results are cached for 1 hour
      *
-     * @param mixed $rootValue
-     * @param array $args
-     * @param GraphQLContext $context
-     * @param ResolveInfo $resolveInfo
+     * @param  mixed  $rootValue
      * @return array
      */
     public function __invoke($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
@@ -41,9 +38,6 @@ class GetCollectionFilterFields
 
     /**
      * Discover filterable fields from collection's direct children only
-     *
-     * @param string $collectionId
-     * @return array
      */
     private function discoverFilterableFields(string $collectionId): array
     {
@@ -66,9 +60,6 @@ class GetCollectionFilterFields
 
     /**
      * Extract filterable fields from a list of items
-     *
-     * @param array $items
-     * @return array
      */
     private function extractFilterableFields(array $items): array
     {
@@ -83,7 +74,7 @@ class GetCollectionFilterFields
 
         foreach ($standardFields as $fieldDef) {
             $values = $this->extractFieldValues($items, $fieldDef['field']);
-            if (!empty($values)) {
+            if (! empty($values)) {
                 $fields[] = [
                     'field' => $fieldDef['field'],
                     'label' => $fieldDef['label'],
@@ -104,6 +95,7 @@ class GetCollectionFilterFields
             if ($a['priority'] !== $b['priority']) {
                 return $a['priority'] - $b['priority'];
             }
+
             return strcmp($a['label'], $b['label']);
         });
 
@@ -112,10 +104,6 @@ class GetCollectionFilterFields
 
     /**
      * Extract unique values for a field from items
-     *
-     * @param array $items
-     * @param string $field
-     * @return array
      */
     private function extractFieldValues(array $items, string $field): array
     {
@@ -147,8 +135,6 @@ class GetCollectionFilterFields
      * Get nested value from array using dot notation
      * Handles JSON-encoded strings by decoding them
      *
-     * @param array $item
-     * @param string $path
      * @return mixed
      */
     private function getNestedValue(array $item, string $path)
@@ -179,9 +165,6 @@ class GetCollectionFilterFields
 
     /**
      * Discover filterable fields from item attributes and top-level fields
-     *
-     * @param array $items
-     * @return array
      */
     private function discoverAttributeFields(array $items): array
     {
@@ -212,7 +195,7 @@ class GetCollectionFilterFields
                 }
 
                 // If it's a simple value or array of simple values, add it
-                if (is_scalar($value) || (is_array($value) && !empty($value) && is_scalar($value[0] ?? null))) {
+                if (is_scalar($value) || (is_array($value) && ! empty($value) && is_scalar($value[0] ?? null))) {
                     $allPaths[$key] = true;
                 }
             }
@@ -223,7 +206,7 @@ class GetCollectionFilterFields
         foreach ($allPaths as $path => $_) {
             $values = $this->extractFieldValues($items, $path);
 
-            if (!empty($values)) {
+            if (! empty($values)) {
                 $fields[] = [
                     'field' => $path,
                     'label' => $this->formatAttributeLabel($path),
@@ -240,12 +223,6 @@ class GetCollectionFilterFields
 
     /**
      * Recursively collect all paths in an object
-     *
-     * @param array $obj
-     * @param string $prefix
-     * @param array $paths
-     * @param int $maxDepth
-     * @param int $currentDepth
      */
     private function collectPaths(array $obj, string $prefix, array &$paths, int $maxDepth, int $currentDepth): void
     {
@@ -262,14 +239,14 @@ class GetCollectionFilterFields
 
             if (is_array($value)) {
                 // If array contains primitive values, add the path
-                if (!empty($value) && (!is_array($value[0]) || $value[0] === null)) {
+                if (! empty($value) && (! is_array($value[0]) || $value[0] === null)) {
                     $paths[$path] = true;
-                } elseif (!empty($value) && is_array($value[0])) {
+                } elseif (! empty($value) && is_array($value[0])) {
                     // Recurse into array of objects
                     $this->collectPaths($value[0], $path, $paths, $maxDepth, $currentDepth + 1);
                 }
             } elseif (is_object($value)) {
-                $this->collectPaths((array)$value, $path, $paths, $maxDepth, $currentDepth + 1);
+                $this->collectPaths((array) $value, $path, $paths, $maxDepth, $currentDepth + 1);
             } else {
                 // Primitive value
                 $paths[$path] = true;
@@ -279,9 +256,6 @@ class GetCollectionFilterFields
 
     /**
      * Format attribute path into a readable label
-     *
-     * @param string $path
-     * @return string
      */
     private function formatAttributeLabel(string $path): string
     {
@@ -294,6 +268,7 @@ class GetCollectionFilterFields
             $part = preg_replace('/([A-Z])/', ' $1', $part);
             // Split on underscores
             $part = str_replace('_', ' ', $part);
+
             return trim($part);
         }, explode('.', $withoutPrefix));
 
@@ -307,9 +282,6 @@ class GetCollectionFilterFields
 
     /**
      * Infer the data type of field values
-     *
-     * @param array $values
-     * @return string
      */
     private function inferFieldType(array $values): string
     {

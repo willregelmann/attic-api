@@ -12,6 +12,7 @@ class UserCollectionFavorite extends Pivot
     protected $table = 'user_collection_favorites';
 
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -28,10 +29,7 @@ class UserCollectionFavorite extends Pivot
     }
 
     /**
-     * Get the collection
+     * Note: collection_id references Supabase collection entity UUID
+     * Use DatabaseOfThingsService to fetch collection data from Supabase
      */
-    public function collection()
-    {
-        return $this->belongsTo(Item::class, 'collection_id');
-    }
 }

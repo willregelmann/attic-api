@@ -11,16 +11,15 @@ class ApiTokenMutations
     /**
      * Create a new API token for the authenticated user.
      *
-     * @param null $_
-     * @param array $args
+     * @param  null  $_
      * @return array
      */
     public function createToken($_, array $args)
     {
         /** @var User $user */
         $user = Auth::guard('sanctum')->user();
-        
-        if (!$user) {
+
+        if (! $user) {
             throw new \Exception('User not authenticated');
         }
 
@@ -40,16 +39,15 @@ class ApiTokenMutations
     /**
      * List all API tokens for the authenticated user.
      *
-     * @param null $_
-     * @param array $args
+     * @param  null  $_
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function listTokens($_, array $args)
     {
         /** @var User $user */
         $user = Auth::guard('sanctum')->user();
-        
-        if (!$user) {
+
+        if (! $user) {
             throw new \Exception('User not authenticated');
         }
 
@@ -59,22 +57,21 @@ class ApiTokenMutations
     /**
      * Revoke an API token.
      *
-     * @param null $_
-     * @param array $args
+     * @param  null  $_
      * @return string
      */
     public function revokeToken($_, array $args)
     {
         /** @var User $user */
         $user = Auth::guard('sanctum')->user();
-        
-        if (!$user) {
+
+        if (! $user) {
             throw new \Exception('User not authenticated');
         }
 
         $token = $user->apiTokens()->find($args['id']);
-        
-        if (!$token) {
+
+        if (! $token) {
             throw new \Exception('Token not found');
         }
 

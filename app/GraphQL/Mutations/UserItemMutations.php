@@ -2,11 +2,10 @@
 
 namespace App\GraphQL\Mutations;
 
-use App\Models\Item;
 use App\Models\UserItem;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth;
 use GraphQL\Type\Definition\ResolveInfo;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 class UserItemMutations
@@ -21,7 +20,7 @@ class UserItemMutations
         // Get the authenticated user
         $user = Auth::guard('sanctum')->user();
 
-        if (!$user) {
+        if (! $user) {
             throw new \Exception('Unauthenticated');
         }
 
@@ -30,7 +29,7 @@ class UserItemMutations
         // Note: entity_id references Supabase entity UUID - no local validation possible
 
         // Create the UserItem record
-        $userItem = new UserItem();
+        $userItem = new UserItem;
         $userItem->user_id = $userId;
         $userItem->entity_id = $args['entity_id'];
         $userItem->metadata = $args['metadata'] ?? null;
@@ -52,7 +51,7 @@ class UserItemMutations
     {
         $user = Auth::guard('sanctum')->user();
 
-        if (!$user) {
+        if (! $user) {
             throw new \Exception('Unauthenticated');
         }
 
@@ -85,7 +84,7 @@ class UserItemMutations
     {
         $user = Auth::guard('sanctum')->user();
 
-        if (!$user) {
+        if (! $user) {
             throw new \Exception('Unauthenticated');
         }
 

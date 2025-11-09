@@ -39,7 +39,7 @@ class DatabaseOfThingsService
     }
 
     /**
-     * Normalize an image URL/path to a full URL
+     * Normalize an image URL/path to a full URL with environment-specific transformations
      *
      * @param  string|null  $imageUrl  The image URL or path from the API
      * @return string|null Full image URL or null
@@ -50,9 +50,9 @@ class DatabaseOfThingsService
             return null;
         }
 
-        // If it's already a full URL (starts with http:// or https://), return as-is
+        // If it's already a full URL (starts with http:// or https://), apply transforms
         if (preg_match('/^https?:\/\//', $imageUrl)) {
-            return str_replace('host.docker.internal', '127.0.0.1', $imageUrl);
+            return $this->applyImageUrlTransforms($imageUrl);
         }
 
         // It's a path, prepend the base URL
@@ -60,8 +60,25 @@ class DatabaseOfThingsService
         $path = ltrim($imageUrl, '/');
         $fullUrl = $this->baseUrl.'/'.$path;
 
-        // Replace Docker internal hostname for browser compatibility
-        return str_replace('host.docker.internal', '127.0.0.1', $fullUrl);
+        // Apply environment-specific transformations
+        return $this->applyImageUrlTransforms($fullUrl);
+    }
+
+    /**
+     * Apply environment-specific URL transformations from configuration
+     *
+     * @param  string  $url  The URL to transform
+     * @return string The transformed URL
+     */
+    private function applyImageUrlTransforms(string $url): string
+    {
+        $transforms = config('services.database_of_things.image_url_transforms', []);
+
+        foreach ($transforms as $from => $to) {
+            $url = str_replace($from, $to, $url);
+        }
+
+        return $url;
     }
 
     /**
@@ -477,13 +494,18 @@ class DatabaseOfThingsService
      */
     public function semanticSearch(string $queryText, ?string $entityType = null, int $limit = 20): array
     {
-        $url = $this->baseUrl.'/rest/v1/rpc/search_entities_by_text';
+        $url = $this->baseUrl.'/rest/v1/rpc/search_by_text';
 
         $payload = [
-            'search_query' => $queryText,
+            'query_text' => $queryText,
             'result_limit' => $limit,
             'entity_type_filter' => $entityType,
         ];
+
+        Log::info('Semantic search request', [
+            'url' => $url,
+            'payload' => $payload,
+        ]);
 
         try {
             $response = $this->client->post($url, [
@@ -499,6 +521,11 @@ class DatabaseOfThingsService
             $statusCode = $response->getStatusCode();
             $body = $response->getBody()->getContents();
             $data = json_decode($body, true);
+
+            Log::info('Semantic search response', [
+                'status' => $statusCode,
+                'body' => $body,
+            ]);
 
             if ($statusCode !== 200) {
                 Log::error('Database of Things REST API request failed', [
@@ -747,5 +774,267 @@ class DatabaseOfThingsService
         $promise->wait();
 
         return $results;
+    }
+
+    /**
+     * Get unique parent collections for all items in a collection
+     *
+     * Returns all collections that contain items from the given collection,
+     * excluding the current collection itself. Includes which items belong to each parent.
+     *
+     * @param  string  $collectionId  UUID of the collection
+     * @return array Array of parent collection entities with item_ids field
+     */
+    public function getCollectionParentCollections(string $collectionId): array
+    {
+        // Step 1: Get ALL items in this collection by querying relationships directly
+        // Note: Supabase paginates by default, so we need to fetch all pages
+        $itemsQuery = '
+            query($collectionId: UUID!, $first: Int!, $after: Cursor) {
+                relationshipsCollection(
+                    filter: {
+                        from_id: {eq: $collectionId},
+                        type: {eq: "contains"}
+                    },
+                    first: $first,
+                    after: $after
+                ) {
+                    edges {
+                        node {
+                            to_id
+                        }
+                    }
+                    pageInfo {
+                        hasNextPage
+                        endCursor
+                    }
+                }
+            }
+        ';
+
+        // Paginate through all items
+        $allItemIds = [];
+        $after = null;
+        $pageSize = 1000;
+        $pageCount = 0;
+
+        do {
+            $variables = [
+                'collectionId' => $collectionId,
+                'first' => $pageSize,
+            ];
+            if ($after !== null) {
+                $variables['after'] = $after;
+            }
+
+            $itemsResult = $this->query($itemsQuery, $variables);
+            $itemEdges = $itemsResult['data']['relationshipsCollection']['edges'] ?? [];
+            $pageInfo = $itemsResult['data']['relationshipsCollection']['pageInfo'] ?? [];
+
+            // Extract item IDs from this page
+            $pageItemIds = array_map(fn ($edge) => $edge['node']['to_id'], $itemEdges);
+            $allItemIds = array_merge($allItemIds, $pageItemIds);
+
+            $after = $pageInfo['endCursor'] ?? null;
+            $hasNextPage = $pageInfo['hasNextPage'] ?? false;
+        } while ($hasNextPage);
+
+        // Extract item IDs
+        $itemIds = $allItemIds;
+
+        if (empty($itemIds)) {
+            return [];
+        }
+
+        // Step 2: Query for all parent relationships for these items (with pagination)
+        $parentsQuery = '
+            query($itemIds: [UUID!]!, $first: Int!, $after: Cursor) {
+                relationshipsCollection(
+                    filter: {
+                        to_id: {in: $itemIds},
+                        type: {eq: "contains"}
+                    },
+                    first: $first,
+                    after: $after
+                ) {
+                    edges {
+                        node {
+                            from_id
+                            to_id
+                        }
+                    }
+                    pageInfo {
+                        hasNextPage
+                        endCursor
+                    }
+                }
+            }
+        ';
+
+        // Paginate through all parent relationships
+        $allRelationships = [];
+        $after = null;
+        $pageSize = 1000;
+
+        do {
+            $variables = [
+                'itemIds' => $itemIds,
+                'first' => $pageSize,
+            ];
+            if ($after !== null) {
+                $variables['after'] = $after;
+            }
+
+            $result = $this->query($parentsQuery, $variables);
+            $pageRelationships = $result['data']['relationshipsCollection']['edges'] ?? [];
+            $pageInfo = $result['data']['relationshipsCollection']['pageInfo'] ?? [];
+
+            $allRelationships = array_merge($allRelationships, $pageRelationships);
+
+            $after = $pageInfo['endCursor'] ?? null;
+            $hasNextPage = $pageInfo['hasNextPage'] ?? false;
+        } while ($hasNextPage);
+
+        // Build a map of parent_id => [item_ids]
+        $parentToItems = [];
+        foreach ($allRelationships as $edge) {
+            $parentId = $edge['node']['from_id'];
+            $itemId = $edge['node']['to_id'];
+
+            // Skip the current collection
+            if ($parentId === $collectionId) {
+                continue;
+            }
+
+            if (!isset($parentToItems[$parentId])) {
+                $parentToItems[$parentId] = [];
+            }
+            $parentToItems[$parentId][] = $itemId;
+        }
+
+        $parentIds = array_keys($parentToItems);
+
+        if (empty($parentIds)) {
+            return [];
+        }
+
+        // Fetch parent collection entities (already normalized by getEntitiesByIds)
+        $parents = $this->getEntitiesByIds($parentIds);
+
+        // Add item_ids to each parent collection entity's attributes
+        foreach ($parents as $parentId => &$parent) {
+            // Decode attributes if it's a string
+            $attributes = is_string($parent['attributes'] ?? null)
+                ? json_decode($parent['attributes'], true)
+                : ($parent['attributes'] ?? []);
+
+            // Add item_ids to attributes
+            $attributes['item_ids'] = array_unique($parentToItems[$parentId]);
+
+            // Re-encode attributes
+            $parent['attributes'] = json_encode($attributes);
+        }
+
+        // Return as indexed array
+        return array_values($parents);
+    }
+
+    /**
+     * Get a representative image for a collection by traversing descendants
+     *
+     * Looks for an image in this order:
+     * 1. Collection's own image_url
+     * 2. Random image from items in descendant collections (up to 3 levels deep)
+     *
+     * @param  string  $collectionId  UUID of the collection
+     * @param  int  $maxDepth  Maximum depth to traverse (default: 3)
+     * @param  int  $sampleSize  Number of images to sample from (default: 20)
+     * @return string|null Representative image URL or null
+     */
+    public function getRepresentativeImages(string $collectionId, int $maxDepth = 3, int $sampleSize = 20, int $maxImages = 5): array
+    {
+        // Check cache first
+        $cacheKey = "representative_images:{$collectionId}:{$maxDepth}:{$maxImages}";
+        $cached = Cache::get($cacheKey);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        // Get the collection itself to check if it has an image
+        $collection = $this->getEntity($collectionId);
+        if ($collection && !empty($collection['image_url'])) {
+            // Cache and return empty array (collection has its own image)
+            Cache::put($cacheKey, [], 86400); // 24 hours
+            return [];
+        }
+
+        // Collect images from descendants
+        $imageUrls = $this->collectDescendantImages($collectionId, $maxDepth, $sampleSize);
+
+        if (empty($imageUrls)) {
+            // No images found, cache empty array for shorter period
+            Cache::put($cacheKey, [], 3600); // 1 hour for empty results
+            return [];
+        }
+
+        // Randomly shuffle and take up to maxImages (5 to know if there are more than 4)
+        shuffle($imageUrls);
+        $representativeImages = array_slice($imageUrls, 0, $maxImages);
+
+        // Cache for 24 hours
+        Cache::put($cacheKey, $representativeImages, 86400);
+
+        return $representativeImages;
+    }
+
+    /**
+     * Recursively collect image URLs from descendant items
+     *
+     * @param  string  $collectionId  Current collection ID
+     * @param  int  $remainingDepth  Remaining depth to traverse
+     * @param  int  $sampleSize  Target number of images to collect
+     * @param  array  $collected  Already collected image URLs
+     * @return array Array of image URLs
+     */
+    private function collectDescendantImages(string $collectionId, int $remainingDepth, int $sampleSize, array $collected = []): array
+    {
+        // Stop if we've collected enough samples or reached max depth
+        if (count($collected) >= $sampleSize || $remainingDepth <= 0) {
+            return $collected;
+        }
+
+        // Get items in this collection
+        $items = $this->getCollectionItems($collectionId, 100);
+
+        foreach ($items['items'] as $item) {
+            $entity = $item['entity'];
+
+            // If this is an item with an image, add it to our collection
+            if (!empty($entity['image_url']) && $entity['type'] !== 'collection') {
+                $collected[] = $entity['image_url'];
+
+                // Stop if we have enough samples
+                if (count($collected) >= $sampleSize) {
+                    return $collected;
+                }
+            }
+
+            // If this is a subcollection, recurse into it
+            if ($entity['type'] === 'collection') {
+                $collected = $this->collectDescendantImages(
+                    $entity['id'],
+                    $remainingDepth - 1,
+                    $sampleSize,
+                    $collected
+                );
+
+                // Stop if we have enough samples
+                if (count($collected) >= $sampleSize) {
+                    return $collected;
+                }
+            }
+        }
+
+        return $collected;
     }
 }

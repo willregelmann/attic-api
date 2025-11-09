@@ -4,7 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Laravel API backend for Attic - a collectibles management platform using GraphQL (Lighthouse) with PostgreSQL database.
+Laravel 11 GraphQL API backend for Attic collectibles management platform.
+
+**Technology Stack:**
+- Laravel 11 with Lighthouse GraphQL
+- PostgreSQL with UUID primary keys
+- Laravel Sanctum authentication
+- Docker via Laravel Sail
+
+**Data Architecture:**
+- **Canonical collectibles data**: Read-only from external Supabase "Database of Things" API
+- **User-specific data**: Stored locally (owned items, wishlists, favorites, API tokens)
 
 ## Development Commands
 
@@ -110,36 +120,115 @@ railway logs
 
 ### GraphQL API Structure
 
-The API uses Lighthouse GraphQL with schema-first development:
-- **Schema**: `graphql/schema.graphql` - Defines all types, queries, and mutations
-- **Resolvers**: `app/GraphQL/` - Custom resolvers for complex queries
-  - `Queries/` - Query resolvers (SearchItems, CollectionItems, MyItems, etc.)
-  - `Mutations/` - Mutation resolvers (AuthMutations, UserItemMutations, FavoriteMutations)
-  - `Scalars/` - Custom scalar types (JSON)
+Schema-first development with Lighthouse GraphQL:
+
+**Schema**: `graphql/schema.graphql`
+- Defines all types, queries, and mutations
+- 283 lines of clean GraphQL schema
+- Two main categories: Database of Things queries and user data management
+
+**Resolvers**: `app/GraphQL/`
+- `Queries/DatabaseOfThings/` - External Supabase integration (7 resolvers)
+  - `CollectionsList.php` - Browse collections
+  - `SearchEntities.php` - Search collectibles
+  - `SemanticSearch.php` - Vector-based semantic search
+  - `CollectionItems.php` - Items in a collection
+  - `GetEntity.php` - Single entity details
+  - `GetItemParents.php` - Parent collections
+  - `GetCollectionFilterFields.php` - Dynamic filtering
+- `Queries/` - User-specific data queries
+  - `MyItems.php` - User's owned items
+  - `MyFavoriteCollections.php` - Favorited collections
+  - `MyWishlist.php` - Wishlist items
+  - `MyApiTokens.php` - User's API tokens
+- `Mutations/` - User data mutations
+  - `AuthMutations.php` - Login, register, logout
+  - `UserItemMutations.php` - Add/update/remove owned items
+  - `FavoriteMutations.php` - Favorite/unfavorite collections
+  - `WishlistMutations.php` - Add/remove wishlist items
+  - `ApiTokenMutations.php` - Create/revoke API tokens
+- `Scalars/` - Custom scalar types (JSON)
+
+**Services**: `app/Services/`
+- `DatabaseOfThingsService.php` - Supabase GraphQL client with query methods
 
 ### Database Models
 
-Models use UUID primary keys and JSONB for flexible metadata storage:
-- **Item**: Core model representing collectibles, collections, variants, and components
-- **ItemRelationship**: Many-to-many relationships between items (contains, variant_of, component_of, part_of)
-- **User**: Authentication and ownership
-- **UserItem**: User's owned items with metadata
-- **ItemImage**: Image attachments for items
-- **CollectionMaintainer**: Collection management permissions
+All models use UUID primary keys (`HasUuids` trait) and store flexible metadata in JSONB columns:
+
+**User Data Models:**
+- **User** (`app/Models/User.php`)
+  - Authentication with Laravel Sanctum
+  - Relationships: userItems(), favoriteCollections(), apiTokens(), wishlists()
+
+- **UserItem** (`app/Models/UserItem.php`)
+  - User's owned collectible items
+  - `entity_id` field references Supabase entity UUID
+  - JSONB `metadata` field for custom attributes
+  - JSONB `notes` field for user notes
+
+- **Wishlist** (`app/Models/Wishlist.php`)
+  - User's wishlist items
+  - `entity_id` field references Supabase entity UUID
+
+- **UserCollectionFavorite** (`app/Models/UserCollectionFavorite.php`)
+  - User's favorited collections
+  - `collection_id` field references Supabase collection UUID
+
+- **ApiToken** (`app/Models/ApiToken.php`)
+  - User API tokens for external access
+  - Token abilities, expiration, last used tracking
 
 ### Key Design Patterns
 
-1. **Graph-based item structure**: Items can be collections containing other items, with relationship types defining the nature of connections
-2. **UUID primary keys**: All models use UUIDs instead of auto-incrementing integers
-3. **JSONB metadata**: Flexible storage for varying item attributes without schema changes
-4. **Polymorphic items**: Single Item model serves multiple purposes based on `type` field
+1. **Read-only canonical data**: Collections and collectibles fetched from Supabase "Database of Things" API
+   - No local CRUD operations for canonical items
+   - Supabase entities queried via DatabaseOfThingsService
+
+2. **Entity ID references**: User data references external entities by UUID
+   - `UserItem.entity_id` → Supabase entity UUID
+   - `UserCollectionFavorite.collection_id` → Supabase collection UUID
+   - `Wishlist.entity_id` → Supabase entity UUID
+   - No foreign key constraints (external data)
+
+3. **UUID primary keys**: All models use Laravel's `HasUuids` trait
+   - PostgreSQL UUID type, not strings
+   - No auto-incrementing integers
+
+4. **JSONB for flexibility**: Metadata stored in JSONB columns
+   - `UserItem.metadata` for custom attributes
+   - Cast to array in Eloquent models
+   - Query with PostgreSQL JSONB operators
+
+5. **Service-based integration**: DatabaseOfThingsService encapsulates all Supabase API calls
+   - Centralized error handling
+   - Consistent GraphQL query formatting
+   - Easy to mock in tests
+
+### Database Schema
+
+**User-specific tables** (PostgreSQL with UUIDs):
+```sql
+users (id, name, email, password, email_verified_at, created_at, updated_at)
+user_items (id, user_id, entity_id, metadata, notes, created_at, updated_at)
+wishlists (id, user_id, entity_id, created_at, updated_at)
+user_collection_favorites (id, user_id, collection_id, created_at, updated_at)
+api_tokens (id, user_id, name, token, abilities, last_used_at, expires_at, created_at, updated_at)
+```
+
+**Key Points:**
+- All IDs are UUIDs (PostgreSQL uuid type)
+- `entity_id` and `collection_id` reference external Supabase entities (no FK constraints)
+- `metadata` columns are JSONB
+- Migrations in `database/migrations/`
 
 ### Authentication
 
-- Uses Laravel Sanctum for API token authentication
+- **Laravel Sanctum** for API token authentication
 - Supports email/password and Google OAuth login
-- Bearer tokens stored and sent with GraphQL requests
-- Protected queries/mutations use `@guard` directive
+- Bearer tokens included in GraphQL request headers
+- Protected queries/mutations use `@guard(with: ["sanctum"])` directive
+- Token stored in `api_tokens` table with abilities and expiration
 
 ## Environment Configuration
 
@@ -164,6 +253,12 @@ LIGHTHOUSE_PLAYGROUND_ENABLED=true
 
 # Authentication
 SANCTUM_STATEFUL_DOMAINS=localhost
+
+# Supabase Database of Things Integration
+DATABASE_OF_THINGS_API_URL=http://host.docker.internal:54321
+DATABASE_OF_THINGS_API_KEY=sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
+DATABASE_OF_THINGS_SERVICE_KEY=sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+DATABASE_OF_THINGS_PUBLIC_HOST=localhost
 ```
 
 ## Common Tasks
@@ -199,30 +294,92 @@ Schema::create('table_name', function (Blueprint $table) {
 ./vendor/bin/sail artisan migrate
 ```
 
-### Working with Item Relationships
+### Working with Database of Things (Supabase)
+
+```bash
+# Test Supabase connection
+./vendor/bin/sail artisan supabase:test --search=Pikachu
+```
 
 ```php
-// Get collection items
-$items = $collection->children()
-    ->wherePivot('relationship_type', 'contains')
-    ->orderBy('item_relationship.canonical_order')
-    ->get();
+// Use DatabaseOfThingsService in resolvers
+use App\Services\DatabaseOfThingsService;
 
-// Add item to collection
-$collection->children()->attach($item->id, [
-    'relationship_type' => 'contains',
-    'canonical_order' => $order,
-    'metadata' => ['custom' => 'data']
-]);
+class MyResolver
+{
+    public function __invoke($_, array $args)
+    {
+        $service = app(DatabaseOfThingsService::class);
+
+        // Search entities
+        $results = $service->searchEntities($args['query'], $args['first']);
+
+        // Get collection items
+        $items = $service->getCollectionItems($collectionId, $first, $after);
+
+        // Semantic search
+        $results = $service->semanticSearch($query, $type, $first);
+
+        return $results;
+    }
+}
 ```
+
+## GraphQL API Reference
+
+### Available Queries
+
+**Database of Things (Supabase) - Read-Only:**
+- `databaseOfThingsCollections` - Browse collections
+- `databaseOfThingsSearch` - Text search for entities
+- `databaseOfThingsSemanticSearch` - Vector-based semantic search
+- `databaseOfThingsCollectionItems` - Get items in a collection
+- `databaseOfThingsEntity` - Get single entity by ID
+- `databaseOfThingsItemParents` - Get parent collections for an item
+- `databaseOfThingsCollectionFilterFields` - Get filterable fields for a collection
+
+**User Data:**
+- `me` - Current authenticated user
+- `myItems` - User's owned items (UserItem records with entity_id references)
+- `myFavoriteCollections` - User's favorited collections with stats
+- `myWishlist` - User's wishlist items
+- `myApiTokens` - User's API tokens
+
+### Available Mutations
+
+**Authentication:**
+- `login(email, password)` - Email/password login
+- `register(name, email, password)` - User registration
+- `googleLogin(google_token)` - Google OAuth login
+- `logout` - Logout current user
+
+**User Item Management:**
+- `addItemToMyCollection(entity_id, metadata, notes)` - Add item to collection
+- `updateMyItem(entity_id, metadata, notes)` - Update owned item
+- `removeItemFromMyCollection(entity_id)` - Remove item from collection
+
+**Collection Favorites:**
+- `favoriteCollection(collection_id)` - Add collection to favorites
+- `unfavoriteCollection(collection_id)` - Remove from favorites
+
+**Wishlist:**
+- `addItemToWishlist(entity_id)` - Add item to wishlist
+- `removeItemFromWishlist(entity_id)` - Remove from wishlist
+
+**API Tokens:**
+- `createApiToken(name, abilities, expires_at)` - Create new API token
+- `revokeApiToken(id)` - Revoke API token
 
 ## Custom Artisan Commands
 
 Located in `app/Console/Commands/`:
-- `ListPokemonSets`: List available Pokemon TCG sets
-- `UpdatePokemonTCG`: Update Pokemon card data
-- `LocalizeImages`: Download and store external images locally
-- `FixOrderingMetadata`: Fix canonical ordering in collections
+
+**TestSupabaseConnection** - Test Database of Things API connectivity
+```bash
+./vendor/bin/sail artisan supabase:test --search=Pikachu
+```
+
+Tests connection to Supabase GraphQL endpoint and performs a sample search query.
 
 ## Testing Approach
 

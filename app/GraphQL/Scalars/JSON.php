@@ -4,7 +4,6 @@ namespace App\GraphQL\Scalars;
 
 use GraphQL\Error\InvariantViolation;
 use GraphQL\Type\Definition\ScalarType;
-use GraphQL\Utils\Utils;
 
 class JSON extends ScalarType
 {
@@ -53,6 +52,7 @@ class JSON extends ScalarType
                 foreach ($valueNode->fields as $field) {
                     $value[$field->name->value] = $this->parseLiteral($field->value, $variables);
                 }
+
                 return $value;
             case 'ListValue':
                 return array_map(function ($node) use ($variables) {
@@ -63,7 +63,7 @@ class JSON extends ScalarType
             case 'Variable':
                 return $variables[$valueNode->name->value] ?? null;
             default:
-                throw new InvariantViolation('Invalid value kind: ' . $valueNode->kind);
+                throw new InvariantViolation('Invalid value kind: '.$valueNode->kind);
         }
     }
 }

@@ -18,10 +18,7 @@ class SearchEntities
     /**
      * Search entities in Database of Things
      *
-     * @param mixed $rootValue
-     * @param array $args
-     * @param GraphQLContext $context
-     * @param ResolveInfo $resolveInfo
+     * @param  mixed  $rootValue
      * @return array
      */
     public function __invoke($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
@@ -40,9 +37,6 @@ class SearchEntities
 
     /**
      * Transform Database of Things entity to GraphQL Entity format
-     *
-     * @param array $entity
-     * @return array
      */
     private function transformEntity(array $entity): array
     {

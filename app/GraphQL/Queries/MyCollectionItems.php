@@ -4,8 +4,8 @@ namespace App\GraphQL\Queries;
 
 use App\Models\UserItem;
 use App\Services\DatabaseOfThingsService;
-use Illuminate\Support\Facades\Auth;
 use GraphQL\Type\Definition\ResolveInfo;
+use Illuminate\Support\Facades\Auth;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 class MyCollectionItems
@@ -20,17 +20,14 @@ class MyCollectionItems
     /**
      * Get all items in the user's collection with entity details from Database of Things
      *
-     * @param mixed $rootValue
-     * @param array $args
-     * @param GraphQLContext $context
-     * @param ResolveInfo $resolveInfo
+     * @param  mixed  $rootValue
      * @return array
      */
     public function __invoke($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
     {
         $user = Auth::guard('sanctum')->user();
 
-        if (!$user) {
+        if (! $user) {
             throw new \Exception('Unauthenticated');
         }
 

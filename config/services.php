@@ -44,6 +44,12 @@ return [
     'database_of_things' => [
         'url' => env('DATABASE_OF_THINGS_API_URL', 'http://127.0.0.1:54321'),
         'api_key' => env('DATABASE_OF_THINGS_API_KEY'),
+        // Image URL transformation for environment-specific routing
+        // Format: 'from' => 'to' (string replacement pairs)
+        // Example: Docker internal hostname to localhost for browser access
+        'image_url_transforms' => [
+            'host.docker.internal' => env('DATABASE_OF_THINGS_PUBLIC_HOST', '127.0.0.1'),
+        ],
     ],
 
 ];

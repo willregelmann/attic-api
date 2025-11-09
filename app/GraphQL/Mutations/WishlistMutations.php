@@ -2,11 +2,10 @@
 
 namespace App\GraphQL\Mutations;
 
-use App\Models\Item;
 use App\Models\Wishlist;
+use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use GraphQL\Type\Definition\ResolveInfo;
 use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 class WishlistMutations
@@ -18,7 +17,7 @@ class WishlistMutations
     {
         $user = Auth::guard('sanctum')->user();
 
-        if (!$user) {
+        if (! $user) {
             throw new \Exception('Unauthenticated');
         }
 
@@ -59,7 +58,7 @@ class WishlistMutations
     {
         $user = Auth::guard('sanctum')->user();
 
-        if (!$user) {
+        if (! $user) {
             throw new \Exception('Unauthenticated');
         }
 
@@ -67,7 +66,7 @@ class WishlistMutations
             ->where('entity_id', $args['entity_id'])
             ->first();
 
-        if (!$wishlist) {
+        if (! $wishlist) {
             throw new \Exception('Item not found in wishlist');
         }
 

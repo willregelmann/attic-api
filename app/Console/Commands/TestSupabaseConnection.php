@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\SupabaseGraphQLService;
+use App\Services\DatabaseOfThingsService;
 use Illuminate\Console\Command;
 
 class TestSupabaseConnection extends Command
@@ -24,7 +24,7 @@ class TestSupabaseConnection extends Command
     /**
      * Execute the console command.
      */
-    public function handle(SupabaseGraphQLService $supabase): int
+    public function handle(DatabaseOfThingsService $supabase): int
     {
         $this->info('Testing Supabase Database of Things connection...');
         $this->newLine();
@@ -37,6 +37,7 @@ class TestSupabaseConnection extends Command
 
             if (empty($collections)) {
                 $this->warn('No collections found');
+
                 return self::FAILURE;
             }
 
@@ -84,7 +85,7 @@ class TestSupabaseConnection extends Command
             }
 
             // Test 4: Get single entity
-            if (!empty($items)) {
+            if (! empty($items)) {
                 $firstItem = $items[0]['entity'];
                 $this->info("📦 Fetching entity details for '{$firstItem['name']}'...");
                 $entity = $supabase->getEntity($firstItem['id']);
@@ -96,8 +97,8 @@ class TestSupabaseConnection extends Command
                     $this->line("  Year: {$entity['year']}");
 
                     $attributes = json_decode($entity['attributes'], true);
-                    if (!empty($attributes)) {
-                        $this->line("  Attributes:");
+                    if (! empty($attributes)) {
+                        $this->line('  Attributes:');
                         foreach ($attributes as $key => $value) {
                             $this->line("    - {$key}: {$value}");
                         }
@@ -107,6 +108,7 @@ class TestSupabaseConnection extends Command
             }
 
             $this->info('✅ All tests passed! Supabase connection is working.');
+
             return self::SUCCESS;
 
         } catch (\Exception $e) {
@@ -116,8 +118,8 @@ class TestSupabaseConnection extends Command
 
             // Show configuration hints
             $this->warn('Please check your configuration:');
-            $this->line('  DATABASE_OF_THINGS_API_URL=' . config('services.supabase.url'));
-            $this->line('  DATABASE_OF_THINGS_API_KEY=' . (config('services.supabase.api_key') ? '***' : '(not set)'));
+            $this->line('  DATABASE_OF_THINGS_API_URL='.config('services.database_of_things.url'));
+            $this->line('  DATABASE_OF_THINGS_API_KEY='.(config('services.database_of_things.api_key') ? '***' : '(not set)'));
 
             return self::FAILURE;
         }

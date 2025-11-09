@@ -18,10 +18,7 @@ class SemanticSearch
     /**
      * Perform semantic search using vector embeddings
      *
-     * @param mixed $rootValue
-     * @param array $args
-     * @param GraphQLContext $context
-     * @param ResolveInfo $resolveInfo
+     * @param  mixed  $rootValue
      * @return array
      */
     public function __invoke($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)

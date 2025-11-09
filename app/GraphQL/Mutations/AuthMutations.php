@@ -3,12 +3,12 @@
 namespace App\GraphQL\Mutations;
 
 use App\Models\User;
+use GraphQL\Type\Definition\ResolveInfo;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
-use GraphQL\Type\Definition\ResolveInfo;
-use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
+use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
 class AuthMutations
 {
@@ -16,7 +16,7 @@ class AuthMutations
     {
         $user = User::where('email', $args['email'])->first();
 
-        if (!$user || !Hash::check($args['password'], $user->password)) {
+        if (! $user || ! Hash::check($args['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
             ]);
@@ -37,6 +37,7 @@ class AuthMutations
 
         if ($user) {
             $user->currentAccessToken()->delete();
+
             return 'Successfully logged out';
         }
 
@@ -63,7 +64,7 @@ class AuthMutations
     public function googleLogin($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
     {
         try {
-            Log::info('Google login attempt', ['token' => substr($args['google_token'], 0, 50) . '...']);
+            Log::info('Google login attempt', ['token' => substr($args['google_token'], 0, 50).'...']);
 
             // Decode the Google JWT token to get user info
             // In production, you should verify the token with Google's public keys
@@ -80,7 +81,7 @@ class AuthMutations
             $tokenPayload = base64_decode(str_replace(['-', '_'], ['+', '/'], $tokenParts[1]));
             $tokenData = json_decode($tokenPayload, true);
 
-            if (!$tokenData || !isset($tokenData['email'])) {
+            if (! $tokenData || ! isset($tokenData['email'])) {
                 Log::error('Invalid Google token data', ['data' => $tokenData]);
                 throw new \Exception('Invalid Google token data');
             }
@@ -90,7 +91,7 @@ class AuthMutations
             // Build name from available fields
             $name = $tokenData['name'] ??
                     (isset($tokenData['given_name']) && isset($tokenData['family_name'])
-                        ? $tokenData['given_name'] . ' ' . $tokenData['family_name']
+                        ? $tokenData['given_name'].' '.$tokenData['family_name']
                         : $tokenData['email']);
 
             // Find or create user
@@ -122,7 +123,7 @@ class AuthMutations
         } catch (\Exception $e) {
             Log::error('Google login failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }

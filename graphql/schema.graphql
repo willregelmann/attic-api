@@ -6,6 +6,9 @@ scalar DateTime @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Date
 
 scalar JSON
 
+"Can be used as an argument to upload files using https://github.com/jaydenseric/graphql-multipart-request-spec"
+scalar Upload @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Upload")
+
 # ===== DATABASE OF THINGS TYPES =====
 
 # Entity from Database of Things (canonical collectibles data)
@@ -82,6 +85,33 @@ type UserItem {
     updated_at: DateTime!
 
     user: User! @belongsTo
+}
+
+# User item with full entity data (for My Collection view)
+# Combines UserItem fields with Entity data from Database of Things
+type UserItemWithEntity {
+    # UserItem fields
+    user_item_id: ID!
+    user_id: ID!
+    user_metadata: JSON
+    user_notes: String
+    user_images: JSON
+    user_created_at: DateTime!
+    user_updated_at: DateTime!
+
+    # Entity fields (from Database of Things)
+    id: ID!
+    type: String!
+    name: String!
+    year: Int
+    country: String
+    attributes: JSON
+    image_url: String
+    thumbnail_url: String
+    representative_image_urls: [String!]
+    external_ids: JSON
+    created_at: DateTime
+    updated_at: DateTime
 }
 
 # Wishlist entry
@@ -196,6 +226,9 @@ type Query {
     # User's owned items (returns UserItem records with entity_id references)
     # Optional entity_id filter for duplicate detection
     myItems(entity_id: ID): [UserItem!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyItems")
+
+    # User's collection as entities (fetches entity data for owned items with user metadata)
+    myCollection: [UserItemWithEntity!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyCollection")
 
     # User's favorite collections
     myFavoriteCollections: [CollectionWithStats!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyFavoriteCollections")

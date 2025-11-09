@@ -66,10 +66,6 @@ class ApiToken extends Model
     /**
      * Create a new token for a user.
      *
-     * @param User $user
-     * @param string $name
-     * @param array|null $abilities
-     * @param \DateTime|null $expiresAt
      * @return array ['token' => ApiToken, 'plainTextToken' => string]
      */
     public static function createTokenForUser(
@@ -79,7 +75,7 @@ class ApiToken extends Model
         ?\DateTime $expiresAt = null
     ): array {
         $plainTextToken = self::generateToken();
-        
+
         $token = static::create([
             'user_id' => $user->id,
             'name' => $name,
@@ -96,21 +92,16 @@ class ApiToken extends Model
 
     /**
      * Find a token by its plain text value.
-     *
-     * @param string $plainTextToken
-     * @return ApiToken|null
      */
     public static function findByToken(string $plainTextToken): ?self
     {
         $hashedToken = hash('sha256', $plainTextToken);
-        
+
         return static::where('token', $hashedToken)->first();
     }
 
     /**
      * Check if the token has expired.
-     *
-     * @return bool
      */
     public function hasExpired(): bool
     {
@@ -119,9 +110,6 @@ class ApiToken extends Model
 
     /**
      * Check if the token has a specific ability.
-     *
-     * @param string $ability
-     * @return bool
      */
     public function can(string $ability): bool
     {
