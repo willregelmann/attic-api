@@ -17,7 +17,7 @@ class UserCollectionFavorite extends Pivot
 
     protected $fillable = [
         'user_id',
-        'collection_id',
+        'entity_id',
     ];
 
     /**
@@ -29,7 +29,8 @@ class UserCollectionFavorite extends Pivot
     }
 
     /**
-     * Note: collection_id references Supabase collection entity UUID
+     * Note: entity_id references DBoT collection UUID
+     * No foreign key constraint - references external Database of Things API
      * Use DatabaseOfThingsService to fetch collection data from Supabase
      */
 }
