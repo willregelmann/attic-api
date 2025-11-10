@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\UserCollection;
 use App\Models\UserItem;
 use App\Models\Wishlist;
+use App\Services\DatabaseOfThingsService;
 use App\Services\UserCollectionService;
 
 class UserCollectionServiceProgressTest extends TestCase
@@ -19,7 +20,9 @@ class UserCollectionServiceProgressTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new UserCollectionService();
+        // Mock the DatabaseOfThingsService since we don't need it for these tests
+        $dbotService = $this->createMock(DatabaseOfThingsService::class);
+        $this->service = new UserCollectionService($dbotService);
     }
 
     public function test_calculate_simple_progress_with_no_items()

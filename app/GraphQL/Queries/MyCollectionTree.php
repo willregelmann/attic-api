@@ -47,6 +47,16 @@ class MyCollectionTree
                 ->first();
         }
 
+        // Get DBoT ordering if this is a linked collection
+        $dbotOrder = [];
+        if ($currentCollection && $currentCollection->linked_dbot_collection_id) {
+            $dbotItems = $this->databaseOfThings->getCollectionItems($currentCollection->linked_dbot_collection_id);
+            foreach ($dbotItems['items'] as $index => $item) {
+                $entityId = $item['entity']['id'];
+                $dbotOrder[$entityId] = $item['order'] ?? $index;
+            }
+        }
+
         // Batch fetch entity data for items and wishlists
         $entityIds = $items->pluck('entity_id')
             ->merge($wishlists->pluck('entity_id'))
@@ -122,6 +132,21 @@ class MyCollectionTree
                     'updated_at' => $entity['updated_at'] ?? null,
                 ];
             }
+        }
+
+        // Sort items and wishlists by DBoT order if this is a linked collection
+        if (!empty($dbotOrder)) {
+            usort($transformedItems, function ($a, $b) use ($dbotOrder) {
+                $orderA = $dbotOrder[$a['id']] ?? PHP_INT_MAX;
+                $orderB = $dbotOrder[$b['id']] ?? PHP_INT_MAX;
+                return $orderA <=> $orderB;
+            });
+
+            usort($transformedWishlists, function ($a, $b) use ($dbotOrder) {
+                $orderA = $dbotOrder[$a['id']] ?? PHP_INT_MAX;
+                $orderB = $dbotOrder[$b['id']] ?? PHP_INT_MAX;
+                return $orderA <=> $orderB;
+            });
         }
 
         return [

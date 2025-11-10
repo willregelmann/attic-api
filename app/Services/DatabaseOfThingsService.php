@@ -988,7 +988,8 @@ class DatabaseOfThingsService
     }
 
     /**
-     * Recursively collect image URLs from descendant items
+     * Collect image URLs from descendant items using breadth-first search
+     * Prefers images from direct children, only goes deeper if current level has no images
      *
      * @param  string  $collectionId  Current collection ID
      * @param  int  $remainingDepth  Remaining depth to traverse
@@ -1003,35 +1004,53 @@ class DatabaseOfThingsService
             return $collected;
         }
 
+        // Breadth-first search: process all items at current level before going deeper
+        $currentLevelImages = [];
+        $nextLevelCollections = [];
+
         // Get items in this collection
         $items = $this->getCollectionItems($collectionId, 100);
 
         foreach ($items['items'] as $item) {
             $entity = $item['entity'];
 
-            // If this is an item with an image, add it to our collection
-            if (!empty($entity['image_url']) && $entity['type'] !== 'collection') {
-                $collected[] = $entity['image_url'];
-
-                // Stop if we have enough samples
-                if (count($collected) >= $sampleSize) {
-                    return $collected;
-                }
+            // If this entity has an image, collect it at current level
+            // This includes both items AND collections with their own images
+            if (!empty($entity['image_url'])) {
+                $currentLevelImages[] = $entity['image_url'];
             }
+            // If this is a subcollection WITHOUT an image, save it for next level
+            elseif ($entity['type'] === 'collection') {
+                $nextLevelCollections[] = $entity['id'];
+            }
+        }
 
-            // If this is a subcollection, recurse into it
-            if ($entity['type'] === 'collection') {
-                $collected = $this->collectDescendantImages(
-                    $entity['id'],
-                    $remainingDepth - 1,
-                    $sampleSize,
-                    $collected
-                );
+        // Add current level images to collected
+        foreach ($currentLevelImages as $imageUrl) {
+            $collected[] = $imageUrl;
+            if (count($collected) >= $sampleSize) {
+                return $collected;
+            }
+        }
 
-                // Stop if we have enough samples
-                if (count($collected) >= $sampleSize) {
-                    return $collected;
-                }
+        // If we found images at this level and have enough, stop here (breadth-first preference)
+        if (count($currentLevelImages) > 0) {
+            return $collected;
+        }
+
+        // No images at this level, go one level deeper
+
+        foreach ($nextLevelCollections as $subcollectionId) {
+            $collected = $this->collectDescendantImages(
+                $subcollectionId,
+                $remainingDepth - 1,
+                $sampleSize,
+                $collected
+            );
+
+            // Stop if we have enough samples
+            if (count($collected) >= $sampleSize) {
+                return $collected;
             }
         }
 

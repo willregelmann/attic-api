@@ -201,6 +201,7 @@ type UserCollection {
     user_id: ID!
     parent_collection_id: ID
     name: String!
+    type: String!
     description: String
     custom_image: String
     linked_dbot_collection_id: ID
@@ -274,6 +275,15 @@ type UserCollectionView {
 }
 
 # ===== END USER & AUTH TYPES =====
+
+# ===== ENUMS =====
+
+enum WishlistMode {
+    TRACK @enum(value: "track")
+    ADD_TO_EXISTING @enum(value: "add_to_existing")
+}
+
+# ===== END ENUMS =====
 
 type Query {
     # ===== AUTHENTICATION =====
@@ -497,6 +507,19 @@ type Mutation {
     ): Wishlist!
         @guard
         @field(resolver: "App\\GraphQL\\Mutations\\MoveWishlistItem")
+
+    """
+    Add entire DBoT collection to wishlist
+    Can either track collection (create linked custom collection) or add items to existing collection
+    """
+    addCollectionToWishlist(
+        dbot_collection_id: ID!
+        mode: WishlistMode!
+        target_collection_id: ID
+        new_collection_name: String
+    ): AddCollectionResult!
+        @guard
+        @field(resolver: "App\\GraphQL\\Mutations\\AddCollectionToWishlist")
 }
 
 """
@@ -505,4 +528,14 @@ Result of a delete operation
 type DeleteResult {
     success: Boolean!
     message: String
+}
+
+"""
+Result of adding a collection to wishlist
+"""
+type AddCollectionResult {
+    created_collection: UserCollection
+    items_added: Int!
+    items_already_owned: Int!
+    items_skipped: Int!
 }

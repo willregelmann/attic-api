@@ -12,12 +12,25 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('user_items', function (Blueprint $table) {
+        // Check if the unique constraint exists before trying to drop it
+        $constraintExists = DB::select(
+            "SELECT constraint_name FROM information_schema.table_constraints
+             WHERE table_name = 'user_items'
+             AND constraint_name = 'user_items_user_id_entity_id_unique'"
+        );
+
+        Schema::table('user_items', function (Blueprint $table) use ($constraintExists) {
             // Drop the unique constraint on (user_id, entity_id) to allow duplicates
-            $table->dropUnique('user_items_user_id_entity_id_unique');
+            // Only if it exists
+            if (!empty($constraintExists)) {
+                $table->dropUnique('user_items_user_id_entity_id_unique');
+            }
 
             // Add images JSONB column with default empty array
-            $table->jsonb('images')->default('[]')->after('notes');
+            // Check if column already exists
+            if (!Schema::hasColumn('user_items', 'images')) {
+                $table->jsonb('images')->default('[]')->after('notes');
+            }
         });
 
         // Keep indexes for query performance

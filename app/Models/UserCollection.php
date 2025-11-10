@@ -15,6 +15,7 @@ class UserCollection extends Model
         'user_id',
         'parent_collection_id',
         'name',
+        'type',
         'description',
         'custom_image',
         'linked_dbot_collection_id',

@@ -4,6 +4,7 @@ namespace Tests\Unit\Services;
 
 use App\Models\User;
 use App\Models\UserCollection;
+use App\Services\DatabaseOfThingsService;
 use App\Services\UserCollectionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -17,7 +18,9 @@ class UserCollectionServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new UserCollectionService();
+        // Mock the DatabaseOfThingsService since we don't need it for this test
+        $dbotService = $this->createMock(DatabaseOfThingsService::class);
+        $this->service = new UserCollectionService($dbotService);
     }
 
     public function test_get_collection_tree_returns_root_items()

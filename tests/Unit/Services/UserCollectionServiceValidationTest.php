@@ -6,6 +6,7 @@ use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use App\Models\User;
 use App\Models\UserCollection;
+use App\Services\DatabaseOfThingsService;
 use App\Services\UserCollectionService;
 
 class UserCollectionServiceValidationTest extends TestCase
@@ -17,7 +18,9 @@ class UserCollectionServiceValidationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new UserCollectionService();
+        // Mock the DatabaseOfThingsService since we don't need it for these tests
+        $dbotService = $this->createMock(DatabaseOfThingsService::class);
+        $this->service = new UserCollectionService($dbotService);
     }
 
     public function test_validate_move_prevents_moving_collection_to_itself()

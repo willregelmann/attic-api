@@ -17,7 +17,8 @@ class Entity
      * Resolve representative_image_urls field
      *
      * Returns empty array if collection has its own image_url,
-     * otherwise finds up to 5 random images from descendant items (up to 3 levels deep)
+     * otherwise finds up to 5 random images using breadth-first search (prefers direct children)
+     * Only searches deeper levels if current level has no images (up to 3 levels deep)
      * Fetch 5 to know if there are more than 4
      *
      * @param  array  $entity  The entity data
