@@ -11,7 +11,7 @@ class FavoriteMutations
 {
     /**
      * Add a collection to user's favorites
-     * Note: collection_id references the Database of Things API, not local items table
+     * Note: entity_id references the Database of Things API, not local items table
      */
     public function favoriteCollection($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
     {
@@ -21,13 +21,13 @@ class FavoriteMutations
             throw new \Exception('Unauthenticated');
         }
 
-        $collectionId = $args['collection_id'];
+        $entityId = $args['entity_id'];
 
         // Attach the collection to user's favorites (many-to-many relationship)
-        // No validation needed - collection_id references external Database of Things API
-        $user->favoriteCollections()->syncWithoutDetaching([$collectionId]);
+        // No validation needed - entity_id references external Database of Things API
+        $user->favoriteCollections()->syncWithoutDetaching([$entityId]);
 
-        Log::info('Collection favorited', ['user_id' => $user->id, 'collection_id' => $collectionId]);
+        Log::info('Collection favorited', ['user_id' => $user->id, 'entity_id' => $entityId]);
 
         // Return the user with updated favorites
         return $user->load('favoriteCollections');
@@ -35,7 +35,7 @@ class FavoriteMutations
 
     /**
      * Remove a collection from user's favorites
-     * Note: collection_id references the Database of Things API, not local items table
+     * Note: entity_id references the Database of Things API, not local items table
      */
     public function unfavoriteCollection($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
     {
@@ -45,13 +45,13 @@ class FavoriteMutations
             throw new \Exception('Unauthenticated');
         }
 
-        $collectionId = $args['collection_id'];
+        $entityId = $args['entity_id'];
 
         // Detach the collection from user's favorites
-        // No validation needed - collection_id references external Database of Things API
-        $user->favoriteCollections()->detach($collectionId);
+        // No validation needed - entity_id references external Database of Things API
+        $user->favoriteCollections()->detach($entityId);
 
-        Log::info('Collection unfavorited', ['user_id' => $user->id, 'collection_id' => $collectionId]);
+        Log::info('Collection unfavorited', ['user_id' => $user->id, 'entity_id' => $entityId]);
 
         // Return the user with updated favorites
         return $user->load('favoriteCollections');
