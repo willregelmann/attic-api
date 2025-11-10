@@ -61,7 +61,7 @@ class User extends Authenticatable
 
     /**
      * Get favorite collections for this user
-     * Note: collection_id references Supabase collection UUID
+     * Note: entity_id references Supabase collection UUID
      */
     public function favoriteCollections(): HasMany
     {
