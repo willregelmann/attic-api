@@ -109,9 +109,19 @@ class UserCollectionService
      */
     public function calculateProgress(string $collectionId): array
     {
+        $collection = UserCollection::find($collectionId);
         $ownedCount = $this->countOwnedItemsRecursive($collectionId);
         $wishlistCount = $this->countWishlistedItemsRecursive($collectionId);
-        $totalCount = $ownedCount + $wishlistCount;
+
+        // For linked collections, total = DBoT collection size
+        // For regular collections, total = owned + wishlisted
+        if ($collection && $collection->linked_dbot_collection_id) {
+            // Fetch DBoT collection to get true total
+            $dbotResponse = $this->dbotService->getCollectionItems($collection->linked_dbot_collection_id);
+            $totalCount = count($dbotResponse['items'] ?? []);
+        } else {
+            $totalCount = $ownedCount + $wishlistCount;
+        }
 
         $percentage = $totalCount > 0
             ? round(($ownedCount / $totalCount) * 100, 2)

@@ -47,90 +47,203 @@ class MyCollectionTree
                 ->first();
         }
 
-        // Get DBoT ordering if this is a linked collection
+        // For linked collections, fetch ALL DBoT items and overlay ownership
+        $isLinkedCollection = $currentCollection && $currentCollection->linked_dbot_collection_id;
         $dbotOrder = [];
-        if ($currentCollection && $currentCollection->linked_dbot_collection_id) {
-            $dbotItems = $this->databaseOfThings->getCollectionItems($currentCollection->linked_dbot_collection_id);
-            foreach ($dbotItems['items'] as $index => $item) {
-                $entityId = $item['entity']['id'];
+        $allDbotItems = [];
+
+        if ($isLinkedCollection) {
+            $dbotResponse = $this->databaseOfThings->getCollectionItems($currentCollection->linked_dbot_collection_id);
+
+            // Build ordering map and collect all DBoT items
+            foreach ($dbotResponse['items'] as $index => $item) {
+                $entity = $item['entity'];
+                $entityId = $entity['id'];
                 $dbotOrder[$entityId] = $item['order'] ?? $index;
+                $allDbotItems[$entityId] = $entity;
             }
         }
 
-        // Batch fetch entity data for items and wishlists
-        $entityIds = $items->pluck('entity_id')
-            ->merge($wishlists->pluck('entity_id'))
-            ->unique()
-            ->values()
-            ->toArray();
+        // Determine which entity IDs to fetch
+        $entityIds = [];
+        if ($isLinkedCollection) {
+            // For linked collections, we already have all entities from DBoT
+            $entityIds = array_keys($allDbotItems);
+        } else {
+            // For regular collections, fetch entities for owned/wishlisted items
+            $entityIds = $items->pluck('entity_id')
+                ->merge($wishlists->pluck('entity_id'))
+                ->unique()
+                ->values()
+                ->toArray();
+        }
 
+        // Get entity data
         $entities = [];
-        if (!empty($entityIds)) {
+        if ($isLinkedCollection) {
+            // Use entities from DBoT response
+            $entities = $allDbotItems;
+        } elseif (!empty($entityIds)) {
+            // Fetch from DBoT service
             $entities = $this->databaseOfThings->getEntitiesByIds($entityIds);
+        }
+
+        // Create lookup maps for owned and wishlisted items
+        $ownedItemsMap = [];
+        foreach ($items as $item) {
+            $ownedItemsMap[$item->entity_id] = $item;
+        }
+
+        $wishlistedItemsMap = [];
+        foreach ($wishlists as $wishlist) {
+            $wishlistedItemsMap[$wishlist->entity_id] = $wishlist;
         }
 
         // Transform items to include entity data
         $transformedItems = [];
-        foreach ($items as $item) {
-            $entityId = $item->entity_id;
-            $entity = $entities[$entityId] ?? null;
-
-            if ($entity) {
-                $transformedItems[] = [
-                    // UserItem fields
-                    'user_item_id' => $item->id,
-                    'user_id' => $item->user_id,
-                    'user_metadata' => $item->metadata,
-                    'user_notes' => $item->notes,
-                    'user_images' => $item->images,
-                    'user_created_at' => $item->created_at,
-                    'user_updated_at' => $item->updated_at,
-
-                    // Entity fields (from Database of Things)
-                    'id' => $entity['id'],
-                    'type' => $entity['type'],
-                    'name' => $entity['name'],
-                    'year' => $entity['year'] ?? null,
-                    'country' => $entity['country'] ?? null,
-                    'attributes' => $entity['attributes'] ?? null,
-                    'image_url' => $entity['image_url'] ?? null,
-                    'thumbnail_url' => $entity['thumbnail_url'] ?? null,
-                    'representative_image_urls' => $entity['representative_image_urls'] ?? [],
-                    'external_ids' => $entity['external_ids'] ?? null,
-                    'created_at' => $entity['created_at'] ?? null,
-                    'updated_at' => $entity['updated_at'] ?? null,
-                ];
-            }
-        }
-
-        // Transform wishlists to include entity data
         $transformedWishlists = [];
-        foreach ($wishlists as $wishlist) {
-            $entityId = $wishlist->entity_id;
-            $entity = $entities[$entityId] ?? null;
 
-            if ($entity) {
-                $transformedWishlists[] = [
-                    // Wishlist fields
-                    'wishlist_id' => $wishlist->id,
-                    'user_id' => $wishlist->user_id,
-                    'wishlist_created_at' => $wishlist->created_at,
-                    'wishlist_updated_at' => $wishlist->updated_at,
+        if ($isLinkedCollection) {
+            // For linked collections, iterate over ALL DBoT entities
+            foreach ($entities as $entityId => $entity) {
+                $ownedItem = $ownedItemsMap[$entityId] ?? null;
+                $wishlistItem = $wishlistedItemsMap[$entityId] ?? null;
 
-                    // Entity fields (from Database of Things)
-                    'id' => $entity['id'],
-                    'type' => $entity['type'],
-                    'name' => $entity['name'],
-                    'year' => $entity['year'] ?? null,
-                    'country' => $entity['country'] ?? null,
-                    'attributes' => $entity['attributes'] ?? null,
-                    'image_url' => $entity['image_url'] ?? null,
-                    'thumbnail_url' => $entity['thumbnail_url'] ?? null,
-                    'representative_image_urls' => $entity['representative_image_urls'] ?? [],
-                    'external_ids' => $entity['external_ids'] ?? null,
-                    'created_at' => $entity['created_at'] ?? null,
-                    'updated_at' => $entity['updated_at'] ?? null,
-                ];
+                if ($ownedItem) {
+                    // Item is owned - add to items list
+                    $transformedItems[] = [
+                        // UserItem fields
+                        'user_item_id' => $ownedItem->id,
+                        'user_id' => $ownedItem->user_id,
+                        'user_metadata' => $ownedItem->metadata,
+                        'user_notes' => $ownedItem->notes,
+                        'user_images' => $ownedItem->images,
+                        'user_created_at' => $ownedItem->created_at,
+                        'user_updated_at' => $ownedItem->updated_at,
+
+                        // Entity fields
+                        'id' => $entity['id'],
+                        'type' => $entity['type'],
+                        'name' => $entity['name'],
+                        'year' => $entity['year'] ?? null,
+                        'country' => $entity['country'] ?? null,
+                        'attributes' => $entity['attributes'] ?? null,
+                        'image_url' => $entity['image_url'] ?? null,
+                        'thumbnail_url' => $entity['thumbnail_url'] ?? null,
+                        'representative_image_urls' => $entity['representative_image_urls'] ?? [],
+                        'external_ids' => $entity['external_ids'] ?? null,
+                        'created_at' => $entity['created_at'] ?? null,
+                        'updated_at' => $entity['updated_at'] ?? null,
+                    ];
+                } elseif ($wishlistItem) {
+                    // Item is wishlisted - add to wishlist
+                    $transformedWishlists[] = [
+                        // Wishlist fields
+                        'wishlist_id' => $wishlistItem->id,
+                        'user_id' => $wishlistItem->user_id,
+                        'wishlist_created_at' => $wishlistItem->created_at,
+                        'wishlist_updated_at' => $wishlistItem->updated_at,
+
+                        // Entity fields
+                        'id' => $entity['id'],
+                        'type' => $entity['type'],
+                        'name' => $entity['name'],
+                        'year' => $entity['year'] ?? null,
+                        'country' => $entity['country'] ?? null,
+                        'attributes' => $entity['attributes'] ?? null,
+                        'image_url' => $entity['image_url'] ?? null,
+                        'thumbnail_url' => $entity['thumbnail_url'] ?? null,
+                        'representative_image_urls' => $entity['representative_image_urls'] ?? [],
+                        'external_ids' => $entity['external_ids'] ?? null,
+                        'created_at' => $entity['created_at'] ?? null,
+                        'updated_at' => $entity['updated_at'] ?? null,
+                    ];
+                } else {
+                    // Item is untracked - add to wishlist as "available to add"
+                    $transformedWishlists[] = [
+                        // No wishlist fields (not actually wishlisted)
+                        'wishlist_id' => null,
+                        'user_id' => $user->id,
+                        'wishlist_created_at' => null,
+                        'wishlist_updated_at' => null,
+
+                        // Entity fields
+                        'id' => $entity['id'],
+                        'type' => $entity['type'],
+                        'name' => $entity['name'],
+                        'year' => $entity['year'] ?? null,
+                        'country' => $entity['country'] ?? null,
+                        'attributes' => $entity['attributes'] ?? null,
+                        'image_url' => $entity['image_url'] ?? null,
+                        'thumbnail_url' => $entity['thumbnail_url'] ?? null,
+                        'representative_image_urls' => $entity['representative_image_urls'] ?? [],
+                        'external_ids' => $entity['external_ids'] ?? null,
+                        'created_at' => $entity['created_at'] ?? null,
+                        'updated_at' => $entity['updated_at'] ?? null,
+                    ];
+                }
+            }
+        } else {
+            // For regular collections, only show owned and wishlisted items
+            foreach ($items as $item) {
+                $entityId = $item->entity_id;
+                $entity = $entities[$entityId] ?? null;
+
+                if ($entity) {
+                    $transformedItems[] = [
+                        // UserItem fields
+                        'user_item_id' => $item->id,
+                        'user_id' => $item->user_id,
+                        'user_metadata' => $item->metadata,
+                        'user_notes' => $item->notes,
+                        'user_images' => $item->images,
+                        'user_created_at' => $item->created_at,
+                        'user_updated_at' => $item->updated_at,
+
+                        // Entity fields
+                        'id' => $entity['id'],
+                        'type' => $entity['type'],
+                        'name' => $entity['name'],
+                        'year' => $entity['year'] ?? null,
+                        'country' => $entity['country'] ?? null,
+                        'attributes' => $entity['attributes'] ?? null,
+                        'image_url' => $entity['image_url'] ?? null,
+                        'thumbnail_url' => $entity['thumbnail_url'] ?? null,
+                        'representative_image_urls' => $entity['representative_image_urls'] ?? [],
+                        'external_ids' => $entity['external_ids'] ?? null,
+                        'created_at' => $entity['created_at'] ?? null,
+                        'updated_at' => $entity['updated_at'] ?? null,
+                    ];
+                }
+            }
+
+            foreach ($wishlists as $wishlist) {
+                $entityId = $wishlist->entity_id;
+                $entity = $entities[$entityId] ?? null;
+
+                if ($entity) {
+                    $transformedWishlists[] = [
+                        // Wishlist fields
+                        'wishlist_id' => $wishlist->id,
+                        'user_id' => $wishlist->user_id,
+                        'wishlist_created_at' => $wishlist->created_at,
+                        'wishlist_updated_at' => $wishlist->updated_at,
+
+                        // Entity fields
+                        'id' => $entity['id'],
+                        'type' => $entity['type'],
+                        'name' => $entity['name'],
+                        'year' => $entity['year'] ?? null,
+                        'country' => $entity['country'] ?? null,
+                        'attributes' => $entity['attributes'] ?? null,
+                        'image_url' => $entity['image_url'] ?? null,
+                        'thumbnail_url' => $entity['thumbnail_url'] ?? null,
+                        'representative_image_urls' => $entity['representative_image_urls'] ?? [],
+                        'external_ids' => $entity['external_ids'] ?? null,
+                        'created_at' => $entity['created_at'] ?? null,
+                        'updated_at' => $entity['updated_at'] ?? null,
+                    ];
+                }
             }
         }
 
