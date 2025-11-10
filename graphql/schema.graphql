@@ -417,12 +417,12 @@ type Mutation {
 
     # Favorite a collection
     favoriteCollection(
-        collection_id: ID!
+        entity_id: ID!
     ): User! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\FavoriteMutations@favoriteCollection")
 
     # Unfavorite a collection
     unfavoriteCollection(
-        collection_id: ID!
+        entity_id: ID!
     ): User! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\FavoriteMutations@unfavoriteCollection")
 
     # ===== WISHLIST MANAGEMENT (Auth required) =====
