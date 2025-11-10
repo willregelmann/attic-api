@@ -28,7 +28,7 @@ class MyFavoriteCollections
         // Get favorited collection IDs from pivot table
         $favoriteCollectionIds = DB::table('user_collection_favorites')
             ->where('user_id', $user->id)
-            ->pluck('collection_id')
+            ->pluck('entity_id')
             ->toArray();
 
         if (empty($favoriteCollectionIds)) {
