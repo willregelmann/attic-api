@@ -24,12 +24,16 @@ return [
         'http://localhost:5174',
         'http://localhost:5175',
         'https://www.myattic.online',
+        'https://www.my-attic.online',
+        'https://myattic.online',
+        'https://my-attic.online',
         env('FRONTEND_URL'),
     ]),
 
     'allowed_origins_patterns' => [
         'https://*.up.railway.app',
         'https://*.myattic.online',
+        'https://*.my-attic.online',
     ],
 
     'allowed_headers' => ['*'],
