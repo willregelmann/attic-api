@@ -19,15 +19,18 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
+    'allowed_origins' => array_filter([
         'http://localhost:5173',
         'http://localhost:5174',
         'http://localhost:5175',
-        'https://web-production-3ac54.up.railway.app',
-        env('FRONTEND_URL', 'https://web-production-3ac54.up.railway.app'),
-    ],
+        'https://www.myattic.online',
+        env('FRONTEND_URL'),
+    ]),
 
-    'allowed_origins_patterns' => ['https://*.up.railway.app'],
+    'allowed_origins_patterns' => [
+        'https://*.up.railway.app',
+        'https://*.myattic.online',
+    ],
 
     'allowed_headers' => ['*'],
 
