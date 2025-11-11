@@ -344,6 +344,9 @@ type Query {
     # Optional entity_id filter for duplicate detection
     myItems(entity_id: ID): [UserItem!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyItems")
 
+    # Single user item with entity data (for item detail view)
+    myItem(user_item_id: ID!): UserItemWithEntity @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyItem")
+
     # User's collection as entities (fetches entity data for owned items with user metadata)
     myCollection: [UserItemWithEntity!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyCollection")
 
