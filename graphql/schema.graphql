@@ -97,6 +97,7 @@ type UserItemWithEntity {
     # UserItem fields
     user_item_id: ID!
     user_id: ID!
+    parent_collection_id: ID
     user_metadata: JSON
     user_notes: String
     user_images: JSON
@@ -139,12 +140,6 @@ type CollectionStats {
     completionPercentage: Float! @guard
 }
 
-# Collection with stats
-type CollectionWithStats {
-    collection: Entity!
-    stats: CollectionStats!
-}
-
 # Login response
 type AuthPayload {
     access_token: String!
@@ -172,11 +167,11 @@ type ApiTokenPayload {
 # Wishlist entry with full entity data (for My Wishlist view)
 # Combines Wishlist fields with Entity data from Database of Things
 type WishlistWithEntity {
-    # Wishlist fields
-    wishlist_id: ID!
+    # Wishlist fields (nullable for untracked items in linked collections)
+    wishlist_id: ID
     user_id: ID!
-    wishlist_created_at: DateTime!
-    wishlist_updated_at: DateTime!
+    wishlist_created_at: DateTime
+    wishlist_updated_at: DateTime
 
     # Entity fields (from Database of Things)
     id: ID!
@@ -226,6 +221,9 @@ type UserCollection {
 
     "Representative images for collection thumbnail (up to 4 images)"
     representative_images: [String!]! @field(resolver: "App\\GraphQL\\FieldResolvers\\UserCollectionRepresentativeImagesResolver")
+
+    "Logo image from linked DBoT collection (null if not linked or no logo)"
+    image_url: String @field(resolver: "App\\GraphQL\\FieldResolvers\\UserCollectionImageResolver")
 
     created_at: DateTime!
     updated_at: DateTime!
@@ -349,9 +347,6 @@ type Query {
     # User's collection as entities (fetches entity data for owned items with user metadata)
     myCollection: [UserItemWithEntity!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyCollection")
 
-    # User's favorite collections
-    myFavoriteCollections: [CollectionWithStats!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyFavoriteCollections")
-
     # User's API tokens
     myApiTokens: [ApiToken!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyApiTokens")
 
@@ -414,16 +409,6 @@ type Mutation {
     removeItemFromMyCollection(
         user_item_id: ID!  # Changed from entity_id to target specific copy
     ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserItemMutations@removeItemFromMyCollection")
-
-    # Favorite a collection
-    favoriteCollection(
-        entity_id: ID!
-    ): User! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\FavoriteMutations@favoriteCollection")
-
-    # Unfavorite a collection
-    unfavoriteCollection(
-        entity_id: ID!
-    ): User! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\FavoriteMutations@unfavoriteCollection")
 
     # ===== WISHLIST MANAGEMENT (Auth required) =====
 

@@ -53,7 +53,11 @@ class MyCollectionTree
         $allDbotItems = [];
 
         if ($isLinkedCollection) {
-            $dbotResponse = $this->databaseOfThings->getCollectionItems($currentCollection->linked_dbot_collection_id);
+            // Fetch all items by passing a very large limit (no pagination limit)
+            $dbotResponse = $this->databaseOfThings->getCollectionItems(
+                $currentCollection->linked_dbot_collection_id,
+                PHP_INT_MAX  // Fetch all items, no limit
+            );
 
             // Build ordering map and collect all DBoT items
             foreach ($dbotResponse['items'] as $index => $item) {
@@ -115,6 +119,7 @@ class MyCollectionTree
                         // UserItem fields
                         'user_item_id' => $ownedItem->id,
                         'user_id' => $ownedItem->user_id,
+                        'parent_collection_id' => $ownedItem->parent_collection_id,
                         'user_metadata' => $ownedItem->metadata,
                         'user_notes' => $ownedItem->notes,
                         'user_images' => $ownedItem->images,
@@ -194,6 +199,7 @@ class MyCollectionTree
                         // UserItem fields
                         'user_item_id' => $item->id,
                         'user_id' => $item->user_id,
+                        'parent_collection_id' => $item->parent_collection_id,
                         'user_metadata' => $item->metadata,
                         'user_notes' => $item->notes,
                         'user_images' => $item->images,

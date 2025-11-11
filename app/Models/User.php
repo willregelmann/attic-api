@@ -60,15 +60,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Get favorite collections for this user
-     * Note: entity_id references Supabase collection UUID
-     */
-    public function favoriteCollections(): HasMany
-    {
-        return $this->hasMany(UserCollectionFavorite::class);
-    }
-
-    /**
      * Get API tokens belonging to this user
      */
     public function apiTokens(): HasMany

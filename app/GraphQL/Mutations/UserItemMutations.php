@@ -56,7 +56,7 @@ class UserItemMutations
         }
 
         $userItem = UserItem::where('user_id', $user->id)
-            ->where('entity_id', $args['entity_id'])
+            ->where('id', $args['user_item_id'])
             ->firstOrFail();
 
         if (isset($args['metadata'])) {

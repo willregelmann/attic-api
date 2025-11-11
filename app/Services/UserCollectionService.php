@@ -113,15 +113,8 @@ class UserCollectionService
         $ownedCount = $this->countOwnedItemsRecursive($collectionId);
         $wishlistCount = $this->countWishlistedItemsRecursive($collectionId);
 
-        // For linked collections, total = DBoT collection size
-        // For regular collections, total = owned + wishlisted
-        if ($collection && $collection->linked_dbot_collection_id) {
-            // Fetch DBoT collection to get true total
-            $dbotResponse = $this->dbotService->getCollectionItems($collection->linked_dbot_collection_id);
-            $totalCount = count($dbotResponse['items'] ?? []);
-        } else {
-            $totalCount = $ownedCount + $wishlistCount;
-        }
+        // Calculate total count
+        $totalCount = $this->calculateTotalCountRecursive($collectionId);
 
         $percentage = $totalCount > 0
             ? round(($ownedCount / $totalCount) * 100, 2)
@@ -133,6 +126,40 @@ class UserCollectionService
             'total_count' => $totalCount,
             'percentage' => $percentage,
         ];
+    }
+
+    /**
+     * Calculate total count recursively including all child collections
+     *
+     * @param string $collectionId
+     * @return int
+     */
+    protected function calculateTotalCountRecursive(string $collectionId): int
+    {
+        $collection = UserCollection::find($collectionId);
+        $totalCount = 0;
+
+        // If this collection is linked to DBoT, add its DBoT size
+        if ($collection && $collection->linked_dbot_collection_id) {
+            $dbotResponse = $this->dbotService->getCollectionItems(
+                $collection->linked_dbot_collection_id,
+                PHP_INT_MAX  // Fetch all items, no limit
+            );
+            $totalCount += count($dbotResponse['items'] ?? []);
+        } else {
+            // For non-linked collections at this level, count owned + wishlisted directly here
+            $ownedCount = UserItem::where('parent_collection_id', $collectionId)->count();
+            $wishlistCount = Wishlist::where('parent_collection_id', $collectionId)->count();
+            $totalCount += $ownedCount + $wishlistCount;
+        }
+
+        // Recursively add totals from child collections
+        $subcollections = UserCollection::where('parent_collection_id', $collectionId)->get();
+        foreach ($subcollections as $subcollection) {
+            $totalCount += $this->calculateTotalCountRecursive($subcollection->id);
+        }
+
+        return $totalCount;
     }
 
     /**
@@ -189,8 +216,8 @@ class UserCollectionService
         string $dbotCollectionId,
         ?string $targetCollectionId = null
     ): array {
-        // 1. Get all items from DBoT collection
-        $dbotResult = $this->dbotService->getCollectionItems($dbotCollectionId);
+        // 1. Get all items from DBoT collection (fetch everything)
+        $dbotResult = $this->dbotService->getCollectionItems($dbotCollectionId, PHP_INT_MAX);
         $dbotItems = $dbotResult['items'] ?? [];
 
         // Extract entity IDs from DBoT items
