@@ -47,15 +47,24 @@ class UserCollectionRepresentativeImagesResolver
         // Fetch entities from Database of Things for items/wishlists
         $images = [];
         if (!empty($entityIds)) {
-            $entities = $this->databaseOfThings->getEntitiesByIds($entityIds);
+            try {
+                $entities = $this->databaseOfThings->getEntitiesByIds($entityIds);
 
-            // Extract image URLs
-            foreach ($entityIds as $entityId) {
-                $entity = $entities[$entityId] ?? null;
-                if ($entity && isset($entity['image_url']) && $entity['image_url']) {
-                    $images[] = $entity['image_url'];
+                // Extract image URLs
+                foreach ($entityIds as $entityId) {
+                    $entity = $entities[$entityId] ?? null;
+                    if ($entity && isset($entity['image_url']) && $entity['image_url']) {
+                        $images[] = $entity['image_url'];
+                    }
+                    if (count($images) >= 4) break;
                 }
-                if (count($images) >= 4) break;
+            } catch (\Exception $e) {
+                \Log::error('UserCollectionRepresentativeImagesResolver: getEntitiesByIds failed', [
+                    'collection_id' => $collection->id,
+                    'entity_ids' => $entityIds,
+                    'error' => $e->getMessage(),
+                ]);
+                // Continue with empty images array
             }
         }
 

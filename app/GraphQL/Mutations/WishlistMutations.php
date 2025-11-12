@@ -22,6 +22,7 @@ class WishlistMutations
         }
 
         $entityId = $args['entity_id'];
+        $parentCollectionId = $args['parent_collection_id'] ?? null;
 
         // Note: entity_id references Supabase entity UUID - no local validation possible
 
@@ -31,9 +32,10 @@ class WishlistMutations
             throw new \Exception('Item is already in your collection');
         }
 
-        // Check if entity is already in wishlist
+        // Check if entity is already in wishlist (in the same collection)
         $existingWishlist = Wishlist::where('user_id', $user->id)
             ->where('entity_id', $entityId)
+            ->where('parent_collection_id', $parentCollectionId)
             ->first();
 
         if ($existingWishlist) {
@@ -44,9 +46,14 @@ class WishlistMutations
         $wishlist = Wishlist::create([
             'user_id' => $user->id,
             'entity_id' => $entityId,
+            'parent_collection_id' => $parentCollectionId,
         ]);
 
-        Log::info('Item added to wishlist', ['user_id' => $user->id, 'entity_id' => $entityId]);
+        Log::info('Item added to wishlist', [
+            'user_id' => $user->id,
+            'entity_id' => $entityId,
+            'parent_collection_id' => $parentCollectionId,
+        ]);
 
         return $wishlist->load('user');
     }

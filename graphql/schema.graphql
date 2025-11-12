@@ -418,6 +418,7 @@ type Mutation {
     # Add item to wishlist (entity_id references Database of Things entity)
     addItemToWishlist(
         entity_id: ID!
+        parent_collection_id: ID
     ): Wishlist! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\WishlistMutations@addItemToWishlist")
 
     # Remove item from wishlist (entity_id references Database of Things entity)
