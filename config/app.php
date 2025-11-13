@@ -43,6 +43,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Enable Test Endpoints
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, test-only endpoints are available for E2E testing.
+    | SECURITY: This should NEVER be enabled in production.
+    | Only enable in local/testing environments.
+    |
+    */
+
+    'enable_test_endpoints' => (bool) env('ENABLE_TEST_ENDPOINTS', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |
