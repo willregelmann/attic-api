@@ -15,20 +15,23 @@ return new class extends Migration
         if (Schema::hasColumn('user_items', 'item_id')) {
             Schema::table('user_items', function (Blueprint $table) {
                 // Drop constraints and indexes first (if they exist)
-                try {
+
+                // Check for unique constraint
+                $uniqueExists = \DB::select("SELECT conname FROM pg_constraint WHERE conname = 'user_items_user_id_item_id_unique'");
+                if (!empty($uniqueExists)) {
                     $table->dropUnique(['user_id', 'item_id']);
-                } catch (\Exception $e) {
-                    // Constraint doesn't exist, continue
                 }
-                try {
+
+                // Check for foreign key (shouldn't exist but check anyway)
+                $fkExists = \DB::select("SELECT conname FROM pg_constraint WHERE conname = 'user_items_item_id_foreign'");
+                if (!empty($fkExists)) {
                     $table->dropForeign(['item_id']);
-                } catch (\Exception $e) {
-                    // Foreign key doesn't exist, continue
                 }
-                try {
+
+                // Check for index
+                $indexExists = \DB::select("SELECT indexname FROM pg_indexes WHERE tablename = 'user_items' AND indexname = 'user_items_item_id_index'");
+                if (!empty($indexExists)) {
                     $table->dropIndex(['item_id']);
-                } catch (\Exception $e) {
-                    // Index doesn't exist, continue
                 }
 
                 // Rename column
@@ -71,13 +74,26 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('user_items', function (Blueprint $table) {
-            // Drop constraints and indexes
-            $table->dropUnique(['user_id', 'entity_id']);
-            $table->dropForeign(['entity_id']);
-            $table->dropIndex(['entity_id']);
+            // Drop constraints and indexes (check if they exist first)
+            $uniqueExists = \DB::select("SELECT conname FROM pg_constraint WHERE conname = 'user_items_user_id_entity_id_unique'");
+            if (!empty($uniqueExists)) {
+                $table->dropUnique(['user_id', 'entity_id']);
+            }
 
-            // Drop notes column
-            $table->dropColumn('notes');
+            $fkExists = \DB::select("SELECT conname FROM pg_constraint WHERE conname = 'user_items_entity_id_foreign'");
+            if (!empty($fkExists)) {
+                $table->dropForeign(['entity_id']);
+            }
+
+            $indexExists = \DB::select("SELECT indexname FROM pg_indexes WHERE tablename = 'user_items' AND indexname = 'user_items_entity_id_index'");
+            if (!empty($indexExists)) {
+                $table->dropIndex(['entity_id']);
+            }
+
+            // Drop notes column if it exists
+            if (Schema::hasColumn('user_items', 'notes')) {
+                $table->dropColumn('notes');
+            }
 
             // Rename column back
             $table->renameColumn('entity_id', 'item_id');
@@ -86,7 +102,8 @@ return new class extends Migration
         // Recreate original constraints and indexes
         Schema::table('user_items', function (Blueprint $table) {
             $table->index('item_id');
-            $table->foreign('item_id')->references('id')->on('items')->onDelete('cascade');
+            // Note: Original migration never created this foreign key, so we don't recreate it
+            // $table->foreign('item_id')->references('id')->on('items')->onDelete('cascade');
             $table->unique(['user_id', 'item_id']);
         });
     }
