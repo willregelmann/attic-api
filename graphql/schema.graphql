@@ -426,6 +426,24 @@ type Mutation {
         entity_id: ID!
     ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\WishlistMutations@removeItemFromWishlist")
 
+    # ===== BATCH OPERATIONS (Auth required) =====
+
+    # Batch add items to collection
+    batchAddItemsToMyCollection(
+        entity_ids: [ID!]!
+    ): BatchItemResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\BatchUserItemMutations@batchAddItemsToMyCollection")
+
+    # Batch delete items from collection
+    batchRemoveItemsFromMyCollection(
+        entity_ids: [ID!]!
+    ): BatchItemResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\BatchUserItemMutations@batchRemoveItemsFromMyCollection")
+
+    # Batch add items to wishlist
+    batchAddItemsToWishlist(
+        entity_ids: [ID!]!
+        parent_collection_id: ID
+    ): BatchItemResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\BatchUserItemMutations@batchAddItemsToWishlist")
+
     # ===== API TOKEN MANAGEMENT (Auth required) =====
 
     # Create a new API token
@@ -522,6 +540,16 @@ Result of a delete operation
 """
 type DeleteResult {
     success: Boolean!
+    message: String
+}
+
+"""
+Result of batch item operations
+"""
+type BatchItemResult {
+    success: Boolean!
+    items_processed: Int!
+    items_skipped: Int!
     message: String
 }
 
