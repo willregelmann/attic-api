@@ -5,15 +5,26 @@ namespace App\GraphQL\Mutations;
 use App\Models\UserItem;
 use App\Models\Wishlist;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class BatchUserItemMutations
 {
     /**
      * Batch add items to user's collection
+     *
+     * @param mixed $rootValue The root value passed to the resolver
+     * @param array $args The arguments passed to the mutation
+     * @return array{success: bool, items_processed: int, items_skipped: int, message: string}
+     * @throws \Exception If user is not authenticated
      */
     public function batchAddItemsToMyCollection($rootValue, array $args)
     {
         $user = auth()->user();
+
+        if (!$user) {
+            throw new \Exception('Unauthenticated');
+        }
+
         $entityIds = $args['entity_ids'];
 
         $processed = 0;
@@ -40,6 +51,12 @@ class BatchUserItemMutations
             }
         });
 
+        Log::info('Batch add to collection completed', [
+            'user_id' => $user->id,
+            'processed' => $processed,
+            'skipped' => $skipped,
+        ]);
+
         return [
             'success' => true,
             'items_processed' => $processed,
@@ -50,15 +67,30 @@ class BatchUserItemMutations
 
     /**
      * Batch remove items from user's collection
+     *
+     * @param mixed $rootValue The root value passed to the resolver
+     * @param array $args The arguments passed to the mutation
+     * @return array{success: bool, items_processed: int, items_skipped: int, message: string}
+     * @throws \Exception If user is not authenticated
      */
     public function batchRemoveItemsFromMyCollection($rootValue, array $args)
     {
         $user = auth()->user();
+
+        if (!$user) {
+            throw new \Exception('Unauthenticated');
+        }
+
         $entityIds = $args['entity_ids'];
 
         $deleted = UserItem::where('user_id', $user->id)
             ->whereIn('entity_id', $entityIds)
             ->delete();
+
+        Log::info('Batch remove from collection completed', [
+            'user_id' => $user->id,
+            'deleted' => $deleted,
+        ]);
 
         return [
             'success' => true,
@@ -70,10 +102,20 @@ class BatchUserItemMutations
 
     /**
      * Batch add items to wishlist
+     *
+     * @param mixed $rootValue The root value passed to the resolver
+     * @param array $args The arguments passed to the mutation
+     * @return array{success: bool, items_processed: int, items_skipped: int, message: string}
+     * @throws \Exception If user is not authenticated
      */
     public function batchAddItemsToWishlist($rootValue, array $args)
     {
         $user = auth()->user();
+
+        if (!$user) {
+            throw new \Exception('Unauthenticated');
+        }
+
         $entityIds = $args['entity_ids'];
         $parentCollectionId = $args['parent_collection_id'] ?? null;
 
@@ -111,6 +153,12 @@ class BatchUserItemMutations
                 $processed++;
             }
         });
+
+        Log::info('Batch add to wishlist completed', [
+            'user_id' => $user->id,
+            'processed' => $processed,
+            'skipped' => $skipped,
+        ]);
 
         return [
             'success' => true,
