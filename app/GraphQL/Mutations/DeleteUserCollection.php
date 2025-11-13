@@ -14,7 +14,6 @@ class DeleteUserCollection
     {
         $user = auth()->user();
         $collectionId = $args['id'];
-        $deleteContents = $args['delete_contents'];
 
         // Find collection and verify ownership
         $collection = UserCollection::where('id', $collectionId)
@@ -25,61 +24,73 @@ class DeleteUserCollection
             throw new UserError('Collection not found or access denied');
         }
 
-        DB::transaction(function () use ($collection, $deleteContents) {
-            if ($deleteContents) {
-                // Delete all descendant collections recursively
-                $this->deleteDescendantCollections($collection->id);
+        $itemsDeleted = 0;
+        $subcollectionsDeleted = 0;
 
-                // Move all items/wishlists to root (preserve user data)
-                $this->moveContentsToRoot($collection->id);
-            } else {
-                // Move contents to parent collection
-                $newParentId = $collection->parent_collection_id;
+        DB::transaction(function () use ($collection, &$itemsDeleted, &$subcollectionsDeleted) {
+            // Count and soft delete all descendant collections recursively
+            $subcollectionsDeleted = $this->softDeleteDescendantCollections($collection->id);
 
-                UserCollection::where('parent_collection_id', $collection->id)
-                    ->update(['parent_collection_id' => $newParentId]);
+            // Count and soft delete all items and wishlists in this collection and descendants
+            $itemsDeleted = $this->softDeleteDescendantItems($collection->id);
 
-                UserItem::where('parent_collection_id', $collection->id)
-                    ->update(['parent_collection_id' => $newParentId]);
-
-                Wishlist::where('parent_collection_id', $collection->id)
-                    ->update(['parent_collection_id' => $newParentId]);
-            }
-
-            // Delete the collection
+            // Soft delete the collection itself
             $collection->delete();
         });
 
         return [
             'success' => true,
-            'message' => 'Collection deleted successfully',
+            'deleted_collection_id' => $collectionId,
+            'items_deleted' => $itemsDeleted,
+            'subcollections_deleted' => $subcollectionsDeleted,
         ];
     }
 
-    protected function deleteDescendantCollections(string $collectionId): void
+    /**
+     * Recursively soft delete all descendant collections
+     * Returns count of deleted collections
+     */
+    protected function softDeleteDescendantCollections(string $collectionId): int
     {
+        $count = 0;
         $children = UserCollection::where('parent_collection_id', $collectionId)->get();
 
         foreach ($children as $child) {
-            $this->deleteDescendantCollections($child->id);
+            // Recursively delete descendants first
+            $count += $this->softDeleteDescendantCollections($child->id);
+
+            // Soft delete this child
             $child->delete();
+            $count++;
         }
+
+        return $count;
     }
 
-    protected function moveContentsToRoot(string $collectionId): void
+    /**
+     * Soft delete all items and wishlists in this collection and its descendants
+     * Returns count of deleted items (UserItems + Wishlists)
+     */
+    protected function softDeleteDescendantItems(string $collectionId): int
     {
-        // Get all descendant collection IDs
+        // Get all descendant collection IDs (including this one)
         $descendantIds = $this->getDescendantIds($collectionId);
         $descendantIds[] = $collectionId;
 
-        // Move all items and wishlists from this collection and descendants to root
-        UserItem::whereIn('parent_collection_id', $descendantIds)
-            ->update(['parent_collection_id' => null]);
+        // Count and soft delete items
+        $itemCount = UserItem::whereIn('parent_collection_id', $descendantIds)->count();
+        UserItem::whereIn('parent_collection_id', $descendantIds)->delete();
 
-        Wishlist::whereIn('parent_collection_id', $descendantIds)
-            ->update(['parent_collection_id' => null]);
+        // Count and soft delete wishlists
+        $wishlistCount = Wishlist::whereIn('parent_collection_id', $descendantIds)->count();
+        Wishlist::whereIn('parent_collection_id', $descendantIds)->delete();
+
+        return $itemCount + $wishlistCount;
     }
 
+    /**
+     * Get all descendant collection IDs recursively
+     */
     protected function getDescendantIds(string $collectionId): array
     {
         $descendants = [];

@@ -466,16 +466,22 @@ type Mutation {
         @field(resolver: "App\\GraphQL\\Mutations\\MoveUserCollection")
 
     """
-    Delete a collection
-    If delete_contents is false, moves contents to parent collection
-    If delete_contents is true, moves contents to root level (preserves user data)
+    Soft delete a collection and all its nested contents
     """
     deleteUserCollection(
         id: ID! @rules(apply: ["required", "uuid"])
-        delete_contents: Boolean!
-    ): DeleteResult!
+    ): DeleteCollectionResult!
         @guard
         @field(resolver: "App\\GraphQL\\Mutations\\DeleteUserCollection")
+
+    """
+    Preview deletion to show counts of affected items and subcollections
+    """
+    userCollectionDeletionPreview(
+        id: ID! @rules(apply: ["required", "uuid"])
+    ): DeletionPreview!
+        @guard
+        @field(resolver: "App\\GraphQL\\Queries\\UserCollectionDeletionPreview")
 
     """
     Move a user item to a different collection (or root level)
@@ -517,6 +523,26 @@ Result of a delete operation
 type DeleteResult {
     success: Boolean!
     message: String
+}
+
+"""
+Result of deleting a user collection
+"""
+type DeleteCollectionResult {
+    success: Boolean!
+    deleted_collection_id: ID!
+    items_deleted: Int!
+    subcollections_deleted: Int!
+}
+
+"""
+Preview of deletion impact
+"""
+type DeletionPreview {
+    collection_id: ID!
+    collection_name: String!
+    total_items: Int!
+    total_subcollections: Int!
 }
 
 """
