@@ -120,6 +120,7 @@ class MyCollectionTree
                         'user_item_id' => $ownedItem->id,
                         'user_id' => $ownedItem->user_id,
                         'parent_collection_id' => $ownedItem->parent_collection_id,
+                        'variant_id' => $ownedItem->variant_id,
                         'user_metadata' => $ownedItem->metadata,
                         'user_notes' => $ownedItem->notes,
                         'user_images' => $ownedItem->images,
@@ -137,6 +138,7 @@ class MyCollectionTree
                         'thumbnail_url' => $entity['thumbnail_url'] ?? null,
                         'representative_image_urls' => $entity['representative_image_urls'] ?? [],
                         'external_ids' => $entity['external_ids'] ?? null,
+                        'entity_variants' => $entity['entity_variants'] ?? null,
                         'created_at' => $entity['created_at'] ?? null,
                         'updated_at' => $entity['updated_at'] ?? null,
                     ];
@@ -146,6 +148,7 @@ class MyCollectionTree
                         // Wishlist fields
                         'wishlist_id' => $wishlistItem->id,
                         'user_id' => $wishlistItem->user_id,
+                        'variant_id' => $wishlistItem->variant_id,
                         'wishlist_created_at' => $wishlistItem->created_at,
                         'wishlist_updated_at' => $wishlistItem->updated_at,
 
@@ -160,6 +163,7 @@ class MyCollectionTree
                         'thumbnail_url' => $entity['thumbnail_url'] ?? null,
                         'representative_image_urls' => $entity['representative_image_urls'] ?? [],
                         'external_ids' => $entity['external_ids'] ?? null,
+                        'entity_variants' => $entity['entity_variants'] ?? null,
                         'created_at' => $entity['created_at'] ?? null,
                         'updated_at' => $entity['updated_at'] ?? null,
                     ];
@@ -169,6 +173,7 @@ class MyCollectionTree
                         // No wishlist fields (not actually wishlisted)
                         'wishlist_id' => null,
                         'user_id' => $user->id,
+                        'variant_id' => null,
                         'wishlist_created_at' => null,
                         'wishlist_updated_at' => null,
 
@@ -183,6 +188,7 @@ class MyCollectionTree
                         'thumbnail_url' => $entity['thumbnail_url'] ?? null,
                         'representative_image_urls' => $entity['representative_image_urls'] ?? [],
                         'external_ids' => $entity['external_ids'] ?? null,
+                        'entity_variants' => $entity['entity_variants'] ?? null,
                         'created_at' => $entity['created_at'] ?? null,
                         'updated_at' => $entity['updated_at'] ?? null,
                     ];
@@ -200,6 +206,7 @@ class MyCollectionTree
                         'user_item_id' => $item->id,
                         'user_id' => $item->user_id,
                         'parent_collection_id' => $item->parent_collection_id,
+                        'variant_id' => $item->variant_id,
                         'user_metadata' => $item->metadata,
                         'user_notes' => $item->notes,
                         'user_images' => $item->images,
@@ -217,6 +224,7 @@ class MyCollectionTree
                         'thumbnail_url' => $entity['thumbnail_url'] ?? null,
                         'representative_image_urls' => $entity['representative_image_urls'] ?? [],
                         'external_ids' => $entity['external_ids'] ?? null,
+                        'entity_variants' => $entity['entity_variants'] ?? null,
                         'created_at' => $entity['created_at'] ?? null,
                         'updated_at' => $entity['updated_at'] ?? null,
                     ];
@@ -232,6 +240,7 @@ class MyCollectionTree
                         // Wishlist fields
                         'wishlist_id' => $wishlist->id,
                         'user_id' => $wishlist->user_id,
+                        'variant_id' => $wishlist->variant_id,
                         'wishlist_created_at' => $wishlist->created_at,
                         'wishlist_updated_at' => $wishlist->updated_at,
 
@@ -246,6 +255,7 @@ class MyCollectionTree
                         'thumbnail_url' => $entity['thumbnail_url'] ?? null,
                         'representative_image_urls' => $entity['representative_image_urls'] ?? [],
                         'external_ids' => $entity['external_ids'] ?? null,
+                        'entity_variants' => $entity['entity_variants'] ?? null,
                         'created_at' => $entity['created_at'] ?? null,
                         'updated_at' => $entity['updated_at'] ?? null,
                     ];

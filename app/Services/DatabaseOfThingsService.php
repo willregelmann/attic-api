@@ -96,7 +96,43 @@ class DatabaseOfThingsService
             $entity['thumbnail_url'] = $this->normalizeImageUrl($entity['thumbnail_url']);
         }
 
+        // Flatten entity_variants from GraphQL connection structure to JSON array
+        if (isset($entity['entity_variants'])) {
+            $entity['entity_variants'] = $this->normalizeEntityVariants($entity['entity_variants']);
+        }
+
         return $entity;
+    }
+
+    /**
+     * Normalize entity_variants from GraphQL connection structure to array
+     *
+     * @param  array  $variantsConnection  GraphQL connection structure with edges/node
+     * @return array Array of variant objects
+     */
+    private function normalizeEntityVariants(array $variantsConnection): array
+    {
+        $variants = [];
+
+        if (isset($variantsConnection['edges']) && is_array($variantsConnection['edges'])) {
+            foreach ($variantsConnection['edges'] as $edge) {
+                if (isset($edge['node'])) {
+                    $variant = $edge['node'];
+
+                    // Normalize image URLs in the variant
+                    if (isset($variant['image_url'])) {
+                        $variant['image_url'] = $this->normalizeImageUrl($variant['image_url']);
+                    }
+                    if (isset($variant['thumbnail_url'])) {
+                        $variant['thumbnail_url'] = $this->normalizeImageUrl($variant['thumbnail_url']);
+                    }
+
+                    $variants[] = $variant;
+                }
+            }
+        }
+
+        return $variants;
     }
 
     /**
@@ -177,6 +213,17 @@ class DatabaseOfThingsService
                             image_url
                             thumbnail_url
                             external_ids
+                            entity_variants {
+                                edges {
+                                    node {
+                                        id
+                                        name
+                                        attributes
+                                        image_url
+                                        thumbnail_url
+                                    }
+                                }
+                            }
                             created_at
                             updated_at
                         }
@@ -227,6 +274,17 @@ class DatabaseOfThingsService
                                 image_url
                                 thumbnail_url
                                 external_ids
+                                entity_variants {
+                                    edges {
+                                        node {
+                                            id
+                                            name
+                                            attributes
+                                            image_url
+                                            thumbnail_url
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -320,6 +378,17 @@ class DatabaseOfThingsService
                             image_url
                             thumbnail_url
                             external_ids
+                            entity_variants {
+                                edges {
+                                    node {
+                                        id
+                                        name
+                                        attributes
+                                        image_url
+                                        thumbnail_url
+                                    }
+                                }
+                            }
                         }
                     }
                     pageInfo {
@@ -375,6 +444,17 @@ class DatabaseOfThingsService
                             image_url
                             thumbnail_url
                             external_ids
+                            entity_variants {
+                                edges {
+                                    node {
+                                        id
+                                        name
+                                        attributes
+                                        image_url
+                                        thumbnail_url
+                                    }
+                                }
+                            }
                         }
                     }
                     pageInfo {
@@ -426,6 +506,17 @@ class DatabaseOfThingsService
                             image_url
                             thumbnail_url
                             external_ids
+                            entity_variants {
+                                edges {
+                                    node {
+                                        id
+                                        name
+                                        attributes
+                                        image_url
+                                        thumbnail_url
+                                    }
+                                }
+                            }
                             created_at
                             updated_at
                         }
@@ -468,6 +559,17 @@ class DatabaseOfThingsService
                             image_url
                             thumbnail_url
                             external_ids
+                            entity_variants {
+                                edges {
+                                    node {
+                                        id
+                                        name
+                                        attributes
+                                        image_url
+                                        thumbnail_url
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -689,6 +791,17 @@ class DatabaseOfThingsService
                                 image_url
                                 thumbnail_url
                                 external_ids
+                                entity_variants {
+                                    edges {
+                                        node {
+                                            id
+                                            name
+                                            attributes
+                                            image_url
+                                            thumbnail_url
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

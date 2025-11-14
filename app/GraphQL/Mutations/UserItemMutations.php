@@ -33,6 +33,7 @@ class UserItemMutations
         $userItem = new UserItem;
         $userItem->user_id = $userId;
         $userItem->entity_id = $args['entity_id'];
+        $userItem->variant_id = $args['variant_id'] ?? null;
         $userItem->metadata = $args['metadata'] ?? null;
         $userItem->notes = $args['notes'] ?? null;
         $userItem->save();
@@ -90,6 +91,10 @@ class UserItemMutations
         $userItem = UserItem::where('user_id', $user->id)
             ->where('id', $args['user_item_id'])
             ->firstOrFail();
+
+        if (isset($args['variant_id'])) {
+            $userItem->variant_id = $args['variant_id'];
+        }
 
         if (isset($args['metadata'])) {
             $userItem->metadata = array_merge(

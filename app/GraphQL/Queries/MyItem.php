@@ -53,6 +53,7 @@ class MyItem
             'user_item_id' => $userItem->id,
             'user_id' => $userItem->user_id,
             'parent_collection_id' => $userItem->parent_collection_id,
+            'variant_id' => $userItem->variant_id,
             'user_metadata' => $userItem->metadata,
             'user_notes' => $userItem->notes,
             'user_images' => $userItem->images,
@@ -70,6 +71,7 @@ class MyItem
             'thumbnail_url' => $entity['thumbnail_url'] ?? null,
             'representative_image_urls' => $entity['representative_image_urls'] ?? [],
             'external_ids' => $entity['external_ids'] ?? null,
+            'entity_variants' => $entity['entity_variants'] ?? null,
             'created_at' => $entity['created_at'] ?? null,
             'updated_at' => $entity['updated_at'] ?? null,
         ];

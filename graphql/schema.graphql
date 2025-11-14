@@ -11,6 +11,22 @@ scalar Upload @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Upload
 
 # ===== DATABASE OF THINGS TYPES =====
 
+# Image stored in the application (user-uploaded or collection images)
+type Image {
+    id: ID!
+    original: String!
+    thumbnail: String!
+}
+
+# Variant from Database of Things (variant of a base entity)
+type Variant {
+    id: ID!
+    name: String!
+    attributes: JSON
+    image_url: String
+    thumbnail_url: String
+}
+
 # Entity from Database of Things (canonical collectibles data)
 type Entity {
     id: ID!
@@ -23,6 +39,7 @@ type Entity {
     thumbnail_url: String
     representative_image_urls: [String!] @field(resolver: "App\\GraphQL\\Types\\Entity@representativeImageUrls")  # Computed field: up to 5 random images from descendants (empty if collection has own image)
     external_ids: JSON
+    entity_variants: [Variant!]  # Array of variants for this entity
     created_at: DateTime
     updated_at: DateTime
     similarity: Float  # Similarity score for semantic search results
@@ -77,14 +94,16 @@ type User {
 
 # User item ownership (pivot with metadata)
 # entity_id references Database of Things entity UUID (canonical collectibles data)
+# variant_id references a specific variant from entity_variants (null = base item)
 type UserItem {
     id: ID!
     user_id: ID!
     entity_id: ID!
+    variant_id: ID
     parent_collection_id: ID
     metadata: JSON
     notes: String
-    images: JSON  # Array of {original, thumbnail} objects
+    images: [Image!]
     created_at: DateTime!
     updated_at: DateTime!
 
@@ -98,9 +117,10 @@ type UserItemWithEntity {
     user_item_id: ID!
     user_id: ID!
     parent_collection_id: ID
+    variant_id: ID
     user_metadata: JSON
     user_notes: String
-    user_images: JSON
+    user_images: [Image!]
     user_created_at: DateTime!
     user_updated_at: DateTime!
 
@@ -115,16 +135,19 @@ type UserItemWithEntity {
     thumbnail_url: String
     representative_image_urls: [String!]
     external_ids: JSON
+    entity_variants: [Variant!]
     created_at: DateTime
     updated_at: DateTime
 }
 
 # Wishlist entry
 # entity_id references Database of Things entity UUID (canonical collectibles data)
+# variant_id references a specific variant from entity_variants (null = base item)
 type Wishlist {
     id: ID!
     user_id: ID!
     entity_id: ID!
+    variant_id: ID
     parent_collection_id: ID
     created_at: DateTime!
     updated_at: DateTime!
@@ -170,6 +193,7 @@ type WishlistWithEntity {
     # Wishlist fields (nullable for untracked items in linked collections)
     wishlist_id: ID
     user_id: ID!
+    variant_id: ID
     wishlist_created_at: DateTime
     wishlist_updated_at: DateTime
 
@@ -184,6 +208,7 @@ type WishlistWithEntity {
     thumbnail_url: String
     representative_image_urls: [String!]
     external_ids: JSON
+    entity_variants: [Variant!]
     created_at: DateTime
     updated_at: DateTime
 }
@@ -199,7 +224,7 @@ type UserCollection {
     type: String!
     description: String
     custom_image: String @deprecated(reason: "Use images array instead")
-    images: JSON
+    images: [Image!]
     linked_dbot_collection_id: ID
 
     "User who owns this collection"
@@ -395,6 +420,7 @@ type Mutation {
     # Add item to user's collection (entity_id references Database of Things entity)
     addItemToMyCollection(
         entity_id: ID!
+        variant_id: ID
         metadata: JSON
         notes: String
         images: [Upload!]  # GraphQL multipart upload
@@ -403,6 +429,7 @@ type Mutation {
     # Update user's item (user_item_id targets specific copy)
     updateMyItem(
         user_item_id: ID!  # Changed from entity_id to target specific copy
+        variant_id: ID
         metadata: JSON
         notes: String
         images: [Upload!]  # Add new images
@@ -425,6 +452,7 @@ type Mutation {
     # Add item to wishlist (entity_id references Database of Things entity)
     addItemToWishlist(
         entity_id: ID!
+        variant_id: ID
         parent_collection_id: ID
     ): Wishlist! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\WishlistMutations@addItemToWishlist")
 
