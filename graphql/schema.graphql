@@ -431,6 +431,7 @@ type Mutation {
     # Batch add items to collection
     batchAddItemsToMyCollection(
         entity_ids: [ID!]!
+        parent_collection_id: ID
     ): BatchItemResult! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\BatchUserItemMutations@batchAddItemsToMyCollection")
 
     # Batch delete items from collection

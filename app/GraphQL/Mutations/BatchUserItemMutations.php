@@ -26,11 +26,12 @@ class BatchUserItemMutations
         }
 
         $entityIds = $args['entity_ids'];
+        $parentCollectionId = $args['parent_collection_id'] ?? null;
 
         $processed = 0;
         $skipped = 0;
 
-        DB::transaction(function () use ($user, $entityIds, &$processed, &$skipped) {
+        DB::transaction(function () use ($user, $entityIds, $parentCollectionId, &$processed, &$skipped) {
             foreach ($entityIds as $entityId) {
                 // Check if already owned
                 $exists = UserItem::where('user_id', $user->id)
@@ -42,10 +43,17 @@ class BatchUserItemMutations
                     continue;
                 }
 
-                UserItem::create([
+                $data = [
                     'user_id' => $user->id,
                     'entity_id' => $entityId,
-                ]);
+                ];
+
+                // Add parent_collection_id if provided
+                if ($parentCollectionId !== null) {
+                    $data['parent_collection_id'] = $parentCollectionId;
+                }
+
+                UserItem::create($data);
 
                 $processed++;
             }
