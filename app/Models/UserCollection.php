@@ -18,13 +18,15 @@ class UserCollection extends Model
         'name',
         'type',
         'description',
-        'custom_image',
+        'custom_image',  // Keep for backward compatibility (deprecated)
+        'images',  // NEW: array of image objects
         'linked_dbot_collection_id',
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'images' => 'array',  // NEW: cast to array
     ];
 
     /**

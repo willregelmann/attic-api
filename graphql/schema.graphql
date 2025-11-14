@@ -198,7 +198,8 @@ type UserCollection {
     name: String!
     type: String!
     description: String
-    custom_image: String
+    custom_image: String @deprecated(reason: "Use images array instead")
+    images: JSON
     linked_dbot_collection_id: ID
 
     "User who owns this collection"
