@@ -54,7 +54,7 @@ class ImageUploadService
     }
 
     /**
-     * Process and store uploaded images
+     * Process and store uploaded images for user items
      *
      * @param  array  $files  Array of UploadedFile instances
      * @param  string  $userItemId  UUID of the user item
@@ -62,13 +62,38 @@ class ImageUploadService
      */
     public function processAndStoreImages(array $files, string $userItemId): array
     {
+        return $this->processAndStoreImagesForEntity($files, 'user_items', $userItemId);
+    }
+
+    /**
+     * Process and store uploaded images for user collections
+     *
+     * @param  array  $files  Array of UploadedFile instances
+     * @param  string  $collectionId  UUID of the user collection
+     * @return array Array of ['original' => path, 'thumbnail' => path]
+     */
+    public function processAndStoreCollectionImages(array $files, string $collectionId): array
+    {
+        return $this->processAndStoreImagesForEntity($files, 'user_collections', $collectionId);
+    }
+
+    /**
+     * Process and store uploaded images for any entity type
+     *
+     * @param  array  $files  Array of UploadedFile instances
+     * @param  string  $entityType  Entity type (e.g., 'user_items', 'user_collections')
+     * @param  string  $entityId  UUID of the entity
+     * @return array Array of ['id' => uuid, 'original' => path, 'thumbnail' => path]
+     */
+    protected function processAndStoreImagesForEntity(array $files, string $entityType, string $entityId): array
+    {
         $results = [];
         $manager = new ImageManager(new Driver);
 
         foreach ($files as $index => $file) {
             $filename = Str::uuid();
             $extension = $file->getClientOriginalExtension();
-            $basePath = "user_items/{$userItemId}";
+            $basePath = "{$entityType}/{$entityId}";
 
             // Process original (resize if needed)
             $image = $manager->read($file);

@@ -433,6 +433,26 @@ type Mutation {
         entity_id: ID!
     ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\WishlistMutations@removeItemFromWishlist")
 
+    # ===== USER COLLECTION IMAGE MANAGEMENT (Auth required) =====
+
+    # Upload images to user collection
+    uploadCollectionImages(
+        collection_id: ID!
+        images: [Upload!]!
+    ): UserCollection! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserCollectionMutations@uploadCollectionImages")
+
+    # Remove images from user collection
+    removeCollectionImages(
+        collection_id: ID!
+        image_indices: [Int!]!
+    ): UserCollection! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserCollectionMutations@removeCollectionImages")
+
+    # Reorder collection images
+    reorderCollectionImages(
+        collection_id: ID!
+        image_ids: [ID!]!
+    ): UserCollection! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserCollectionMutations@reorderCollectionImages")
+
     # ===== BATCH OPERATIONS (Auth required) =====
 
     # Batch add items to collection
