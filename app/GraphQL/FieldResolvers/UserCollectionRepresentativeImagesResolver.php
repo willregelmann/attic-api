@@ -18,45 +18,99 @@ class UserCollectionRepresentativeImagesResolver
 
     public function __invoke(UserCollection $collection)
     {
-        // If custom image is set, return single-item array
+        // Priority 1: User uploaded image for the collection itself
+        $collectionImages = $collection->images;
+        if (is_array($collectionImages) && !empty($collectionImages)) {
+            // Use first user-uploaded image as primary
+            $firstImage = $collectionImages[0];
+            // Image path needs /storage/ prefix for frontend display
+            $imagePath = $firstImage['thumbnail'] ?? $firstImage['original'] ?? null;
+            if ($imagePath) {
+                return ['/storage/' . $imagePath];
+            }
+        }
+
+        // Fallback: Legacy custom_image (deprecated)
         if ($collection->custom_image) {
             return [$collection->custom_image];
         }
 
+        // Priority 2: DBoT image for linked collection
+        if ($collection->linked_dbot_collection_id) {
+            try {
+                $dbotCollection = $this->databaseOfThings->getEntity($collection->linked_dbot_collection_id);
+                $image = $dbotCollection['thumbnail_url'] ?? $dbotCollection['image_url'] ?? null;
+                if ($image) {
+                    return [$image];
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Failed to fetch linked DBoT collection image', [
+                    'collection_id' => $collection->id,
+                    'linked_dbot_collection_id' => $collection->linked_dbot_collection_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Priority 3: Representative sample grid using child items
         // Get first 4 items (owned + wishlisted)
         $items = UserItem::where('parent_collection_id', $collection->id)
+            ->orderBy('created_at', 'desc')
             ->take(4)
             ->get();
 
         $wishlists = Wishlist::where('parent_collection_id', $collection->id)
+            ->orderBy('created_at', 'desc')
             ->take(max(0, 4 - $items->count()))
             ->get();
 
-        // Collect entity IDs
-        $entityIds = [];
-        foreach ($items as $item) {
-            $entityIds[] = $item->entity_id;
-            if (count($entityIds) >= 4) break;
-        }
-
-        foreach ($wishlists as $wishlist) {
-            $entityIds[] = $wishlist->entity_id;
-            if (count($entityIds) >= 4) break;
-        }
-
-        // Fetch entities from Database of Things for items/wishlists
+        // Build images array, prioritizing user_images over DBoT images
         $images = [];
-        if (!empty($entityIds)) {
+        $entityIds = [];
+
+        // Process owned items first
+        foreach ($items as $item) {
+            // Check for user-uploaded image first
+            $userImages = $item->images;
+            if (is_array($userImages) && !empty($userImages)) {
+                $firstImage = $userImages[0];
+                $thumbnailPath = $firstImage['thumbnail'] ?? $firstImage['original'] ?? null;
+                if ($thumbnailPath) {
+                    $images[] = '/storage/' . $thumbnailPath;
+                }
+            } else {
+                // No user image, will fetch DBoT image later
+                $entityIds[] = $item->entity_id;
+            }
+
+            if (count($images) >= 4) break;
+        }
+
+        // Process wishlist items if we need more images
+        if (count($images) < 4) {
+            foreach ($wishlists as $wishlist) {
+                $entityIds[] = $wishlist->entity_id;
+                if (count($images) + count($entityIds) >= 4) break;
+            }
+        }
+
+        // Fetch DBoT images for items that don't have user images
+        if (!empty($entityIds) && count($images) < 4) {
             try {
                 $entities = $this->databaseOfThings->getEntitiesByIds($entityIds);
 
-                // Extract image URLs
+                // Extract DBoT image URLs
                 foreach ($entityIds as $entityId) {
-                    $entity = $entities[$entityId] ?? null;
-                    if ($entity && isset($entity['image_url']) && $entity['image_url']) {
-                        $images[] = $entity['image_url'];
-                    }
                     if (count($images) >= 4) break;
+
+                    $entity = $entities[$entityId] ?? null;
+                    if ($entity) {
+                        // Prefer thumbnail for grid display
+                        $image = $entity['thumbnail_url'] ?? $entity['image_url'] ?? null;
+                        if ($image) {
+                            $images[] = $image;
+                        }
+                    }
                 }
             } catch (\Exception $e) {
                 \Log::error('UserCollectionRepresentativeImagesResolver: getEntitiesByIds failed', [
@@ -64,17 +118,37 @@ class UserCollectionRepresentativeImagesResolver
                     'entity_ids' => $entityIds,
                     'error' => $e->getMessage(),
                 ]);
-                // Continue with empty images array
+                // Continue with images we have
             }
         }
 
-        // If we don't have enough images, look at subcollections
+        // If we still don't have enough images, look at subcollections
         if (count($images) < 4) {
             $subcollections = UserCollection::where('parent_collection_id', $collection->id)
+                ->orderBy('created_at', 'desc')
                 ->take(4 - count($images))
                 ->get();
 
             foreach ($subcollections as $subcollection) {
+                if (count($images) >= 4) break;
+
+                // Check subcollection's user-uploaded image first
+                $subImages = $subcollection->images;
+                if (is_array($subImages) && !empty($subImages)) {
+                    $firstImage = $subImages[0];
+                    $thumbnailPath = $firstImage['thumbnail'] ?? $firstImage['original'] ?? null;
+                    if ($thumbnailPath) {
+                        $images[] = '/storage/' . $thumbnailPath;
+                        continue;
+                    }
+                }
+
+                // Fallback to subcollection's custom_image (deprecated)
+                if ($subcollection->custom_image) {
+                    $images[] = $subcollection->custom_image;
+                    continue;
+                }
+
                 // If subcollection is linked, get its DBoT collection image
                 if ($subcollection->linked_dbot_collection_id) {
                     try {
@@ -86,12 +160,7 @@ class UserCollectionRepresentativeImagesResolver
                     } catch (\Exception $e) {
                         // Skip if DBoT collection fetch fails
                     }
-                } elseif ($subcollection->custom_image) {
-                    // Use custom image if set
-                    $images[] = $subcollection->custom_image;
                 }
-
-                if (count($images) >= 4) break;
             }
         }
 

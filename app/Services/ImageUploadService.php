@@ -109,9 +109,9 @@ class ImageUploadService
                 $image->encodeByExtension($extension, quality: 85)->toString()
             );
 
-            // Generate thumbnail (square crop)
+            // Generate thumbnail (fit within square, maintain aspect ratio)
             $thumbnail = $manager->read($file);
-            $thumbnail->cover(self::THUMBNAIL_SIZE, self::THUMBNAIL_SIZE);
+            $thumbnail->scale(width: self::THUMBNAIL_SIZE, height: self::THUMBNAIL_SIZE);
 
             $thumbnailPath = "{$basePath}/{$filename}-thumb.{$extension}";
             Storage::disk('public')->put(
