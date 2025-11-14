@@ -11,6 +11,8 @@ if [ -n "$RAILWAY_VOLUME_MOUNT_PATH" ]; then
     
     # Create storage directories in the volume
     mkdir -p "$RAILWAY_VOLUME_MOUNT_PATH/app/public/images/collections"
+    mkdir -p "$RAILWAY_VOLUME_MOUNT_PATH/app/public/user_items"
+    mkdir -p "$RAILWAY_VOLUME_MOUNT_PATH/app/public/user_collections"
     echo "Created directories in volume"
     
     # Debug: Show what's in the volume
@@ -44,6 +46,8 @@ else
     echo "No Railway volume detected, using local storage"
     # Ensure local storage directories exist
     mkdir -p storage/app/public/images/collections
+    mkdir -p storage/app/public/user_items
+    mkdir -p storage/app/public/user_collections
 fi
 
 # Note: We're not creating a public symlink anymore since we serve images through Laravel
