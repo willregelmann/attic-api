@@ -370,6 +370,39 @@ class MyResolver
 - `createApiToken(name, abilities, expires_at)` - Create new API token
 - `revokeApiToken(id)` - Revoke API token
 
+## Image Upload System
+
+**Storage:**
+- User uploaded images stored in `storage/app/public/user_items/{id}/` and `storage/app/public/user_collections/{id}/`
+- Laravel Storage facade with `public` disk (default Laravel storage)
+- Migration path: Railway volumes → S3 (change driver in `config/filesystems.php`)
+- Symlinked to `public/storage` for web access
+
+**Processing:**
+- ImageUploadService (`app/Services/ImageUploadService.php`)
+- Validates file size (10MB max), type (JPEG/PNG/WebP)
+- Resizes originals to max 2000px dimension if needed (quality: 85%)
+- Generates square thumbnails (200x200) using Intervention Image
+- Returns array structure: `[{id: uuid, original: path, thumbnail: path}]`
+
+**Schema:**
+- `UserItem.images` (JSONB array)
+- `UserCollection.images` (JSONB array)
+- Multiple images per entity, first image = primary
+- Images stored as arrays of `{id, original, thumbnail}` objects
+
+**Mutations:**
+- `addItemToMyCollection` - Accepts `images: [Upload!]` parameter for initial upload
+- `updateMyItem` - Accepts `images: [Upload!]` and `remove_image_indices: [Int!]` for management
+- `reorderItemImages` - Reorder images by passing array of image IDs
+- `uploadCollectionImages`, `removeCollectionImages`, `reorderCollectionImages` - Collection image management
+
+**Key Features:**
+- Generic service supports both items and collections via entity type parameter
+- Square thumbnail cropping for consistent grid display
+- Index-based removal system for deleting specific images
+- UUID-based image IDs for drag-and-drop reordering
+
 ## Custom Artisan Commands
 
 Located in `app/Console/Commands/`:
