@@ -77,7 +77,7 @@ class UserItemMutations
     }
 
     /**
-     * Update user's item metadata
+     * Update user's item metadata and images
      */
     public function updateMyItem($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
     {
@@ -102,8 +102,64 @@ class UserItemMutations
             $userItem->notes = $args['notes'];
         }
 
-        $userItem->save();
+        // Handle image removal
+        if (isset($args['remove_image_indices']) && count($args['remove_image_indices']) > 0) {
+            $imageService = app(ImageUploadService::class);
+            $existingImages = $userItem->images ?? [];
 
+            try {
+                // Remove images by indices (service handles deletion and re-indexing)
+                $updatedImages = $imageService->removeImagesByIndices(
+                    $existingImages,
+                    $args['remove_image_indices']
+                );
+
+                $userItem->images = $updatedImages;
+
+                Log::info('Images removed from UserItem', [
+                    'user_item_id' => $userItem->id,
+                    'indices_removed' => $args['remove_image_indices'],
+                    'remaining_count' => count($updatedImages)
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Image removal failed', [
+                    'user_item_id' => $userItem->id,
+                    'error' => $e->getMessage()
+                ]);
+                throw new \Exception("Image removal failed: {$e->getMessage()}");
+            }
+        }
+
+        // Handle new image uploads
+        if (isset($args['images']) && count($args['images']) > 0) {
+            $imageService = app(ImageUploadService::class);
+            $currentImages = $userItem->images ?? [];
+
+            try {
+                // Validate files
+                $imageService->validateFiles($args['images']);
+
+                // Process and store new images
+                $newImages = $imageService->processAndStoreImages($args['images'], $userItem->id);
+
+                // Append new images to existing ones
+                $userItem->images = array_merge($currentImages, $newImages);
+
+                Log::info('Images added to UserItem', [
+                    'user_item_id' => $userItem->id,
+                    'new_images_count' => count($newImages),
+                    'total_images_count' => count($userItem->images)
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Image upload failed', [
+                    'user_item_id' => $userItem->id,
+                    'error' => $e->getMessage()
+                ]);
+                throw new \Exception("Image upload failed: {$e->getMessage()}");
+            }
+        }
+
+        $userItem->save();
         $userItem->load(['user']);
 
         return $userItem;
