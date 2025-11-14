@@ -61,6 +61,10 @@ if [ $? -ne 0 ]; then
     # Don't exit here as migrations might already be up to date
 fi
 
+# Create storage symlink (idempotent)
+echo "Creating storage symlink..."
+php artisan storage:link
+
 # Clear and cache configs for production
 echo "Optimizing for production..."
 php artisan config:cache
