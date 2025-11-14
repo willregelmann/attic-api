@@ -85,8 +85,13 @@ class UserCollectionService
      */
     public function calculateSimpleProgress(string $collectionId): array
     {
-        $ownedCount = UserItem::where('parent_collection_id', $collectionId)->count();
-        $wishlistCount = Wishlist::where('parent_collection_id', $collectionId)->count();
+        // Count unique entity_ids instead of total items
+        $ownedCount = UserItem::where('parent_collection_id', $collectionId)
+            ->distinct('entity_id')
+            ->count('entity_id');
+        $wishlistCount = Wishlist::where('parent_collection_id', $collectionId)
+            ->distinct('entity_id')
+            ->count('entity_id');
         $totalCount = $ownedCount + $wishlistCount;
 
         $percentage = $totalCount > 0
@@ -147,9 +152,13 @@ class UserCollectionService
             );
             $totalCount += count($dbotResponse['items'] ?? []);
         } else {
-            // For non-linked collections at this level, count owned + wishlisted directly here
-            $ownedCount = UserItem::where('parent_collection_id', $collectionId)->count();
-            $wishlistCount = Wishlist::where('parent_collection_id', $collectionId)->count();
+            // For non-linked collections at this level, count unique entity_ids
+            $ownedCount = UserItem::where('parent_collection_id', $collectionId)
+                ->distinct('entity_id')
+                ->count('entity_id');
+            $wishlistCount = Wishlist::where('parent_collection_id', $collectionId)
+                ->distinct('entity_id')
+                ->count('entity_id');
             $totalCount += $ownedCount + $wishlistCount;
         }
 
@@ -170,8 +179,10 @@ class UserCollectionService
      */
     protected function countOwnedItemsRecursive(string $collectionId): int
     {
-        // Count direct children
-        $count = UserItem::where('parent_collection_id', $collectionId)->count();
+        // Count unique entity_ids in direct children
+        $count = UserItem::where('parent_collection_id', $collectionId)
+            ->distinct('entity_id')
+            ->count('entity_id');
 
         // Get subcollections and recursively count their items
         $subcollections = UserCollection::where('parent_collection_id', $collectionId)->get();
@@ -190,8 +201,10 @@ class UserCollectionService
      */
     protected function countWishlistedItemsRecursive(string $collectionId): int
     {
-        // Count direct children
-        $count = Wishlist::where('parent_collection_id', $collectionId)->count();
+        // Count unique entity_ids in direct children
+        $count = Wishlist::where('parent_collection_id', $collectionId)
+            ->distinct('entity_id')
+            ->count('entity_id');
 
         // Get subcollections and recursively count their items
         $subcollections = UserCollection::where('parent_collection_id', $collectionId)->get();
