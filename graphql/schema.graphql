@@ -414,6 +414,12 @@ type Mutation {
         user_item_id: ID!  # Changed from entity_id to target specific copy
     ): String! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserItemMutations@removeItemFromMyCollection")
 
+    # Reorder images for a user item (drag-and-drop support)
+    reorderItemImages(
+        user_item_id: ID!
+        image_ids: [ID!]!  # Array of image IDs in desired order
+    ): UserItem! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserItemMutations@reorderItemImages")
+
     # ===== WISHLIST MANAGEMENT (Auth required) =====
 
     # Add item to wishlist (entity_id references Database of Things entity)

@@ -95,6 +95,7 @@ class ImageUploadService
             );
 
             $results[] = [
+                'id' => (string) $filename,  // UUID as image identifier for reordering
                 'original' => $originalPath,
                 'thumbnail' => $thumbnailPath,
             ];

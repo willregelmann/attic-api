@@ -186,4 +186,55 @@ class UserItemMutations
 
         return 'Item removed from collection';
     }
+
+    /**
+     * Reorder images for a user item
+     */
+    public function reorderItemImages($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
+    {
+        $user = Auth::guard('sanctum')->user();
+
+        if (! $user) {
+            throw new \Exception('Unauthenticated');
+        }
+
+        $userItem = UserItem::where('user_id', $user->id)
+            ->where('id', $args['user_item_id'])
+            ->firstOrFail();
+
+        $currentImages = $userItem->images ?? [];
+        $newOrder = $args['image_ids'];
+
+        // Create a map of id => image data
+        $imageMap = [];
+        foreach ($currentImages as $image) {
+            if (isset($image['id'])) {
+                $imageMap[$image['id']] = $image;
+            }
+        }
+
+        // Rebuild array in new order
+        $reorderedImages = [];
+        foreach ($newOrder as $imageId) {
+            if (isset($imageMap[$imageId])) {
+                $reorderedImages[] = $imageMap[$imageId];
+            }
+        }
+
+        // Validate all images are accounted for
+        if (count($reorderedImages) !== count($currentImages)) {
+            throw new \Exception('Invalid image IDs provided for reordering');
+        }
+
+        $userItem->images = $reorderedImages;
+        $userItem->save();
+        $userItem->load(['user']);
+
+        Log::info('Images reordered for UserItem', [
+            'user_item_id' => $userItem->id,
+            'new_order' => $newOrder
+        ]);
+
+        return $userItem;
+    }
 }
