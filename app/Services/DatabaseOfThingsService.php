@@ -1204,4 +1204,172 @@ class DatabaseOfThingsService
 
         return $collected;
     }
+
+    /**
+     * Generate image embedding using CLIP service
+     *
+     * @param  string  $imagePath  Path to image file
+     * @param  string|null  $mimeType  MIME type of the image (optional)
+     * @return array 512-dimensional embedding
+     *
+     * @throws \Exception If CLIP service fails
+     */
+    public function generateImageEmbedding(string $imagePath, ?string $mimeType = null): array
+    {
+        $clipServiceUrl = config('services.clip.url', 'http://clip-service:8001');
+        $url = $clipServiceUrl.'/embed';
+
+        // Detect MIME type if not provided
+        if ($mimeType === null) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mimeType = finfo_file($finfo, $imagePath);
+            finfo_close($finfo);
+        }
+
+        try {
+            $response = $this->client->post($url, [
+                'multipart' => [
+                    [
+                        'name' => 'file',
+                        'contents' => fopen($imagePath, 'r'),
+                        'filename' => basename($imagePath),
+                        'headers' => [
+                            'Content-Type' => $mimeType,
+                        ],
+                    ],
+                ],
+                'timeout' => 30.0,
+            ]);
+
+            $statusCode = $response->getStatusCode();
+            $body = $response->getBody()->getContents();
+            $data = json_decode($body, true);
+
+            if ($statusCode !== 200) {
+                Log::error('CLIP service request failed', [
+                    'status' => $statusCode,
+                    'body' => $body,
+                ]);
+                throw new \Exception("CLIP service returned status {$statusCode}");
+            }
+
+            if (! isset($data['embedding'])) {
+                throw new \Exception('CLIP service response missing embedding');
+            }
+
+            if (count($data['embedding']) !== 512) {
+                throw new \Exception('CLIP service returned invalid embedding dimensions: '.count($data['embedding']));
+            }
+
+            Log::info('Generated image embedding', [
+                'dimensions' => $data['dimensions'],
+                'filename' => $data['filename'] ?? basename($imagePath),
+            ]);
+
+            return $data['embedding'];
+
+        } catch (GuzzleException $e) {
+            Log::error('CLIP service connection failed', [
+                'message' => $e->getMessage(),
+                'path' => $imagePath,
+            ]);
+            throw new \Exception('Failed to connect to CLIP service: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Search for visually similar images using CLIP embedding
+     *
+     * @param  array  $embedding  512-dimensional CLIP embedding
+     * @param  int  $limit  Number of results to return
+     * @param  float  $minSimilarity  Minimum similarity threshold (0.0 to 1.0)
+     * @return array Search results with similarity scores
+     */
+    public function searchByImageEmbedding(array $embedding, int $limit = 20, float $minSimilarity = 0.75): array
+    {
+        $url = $this->baseUrl.'/rest/v1/rpc/image_search';
+
+        $payload = [
+            'query_embedding' => $embedding,
+            'result_limit' => $limit,
+        ];
+
+        Log::info('Image similarity search request', [
+            'url' => $url,
+            'limit' => $limit,
+            'min_similarity' => $minSimilarity,
+        ]);
+
+        try {
+            $response = $this->client->post($url, [
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'apikey' => $this->apiKey,
+                    'Authorization' => 'Bearer '.$this->apiKey,
+                    'Accept' => 'application/json',
+                ],
+                'json' => $payload,
+            ]);
+
+            $statusCode = $response->getStatusCode();
+            $body = $response->getBody()->getContents();
+            $data = json_decode($body, true);
+
+            Log::info('Image similarity search response', [
+                'status' => $statusCode,
+                'result_count' => count($data ?? []),
+            ]);
+
+            if ($statusCode !== 200) {
+                Log::error('Database of Things image search failed', [
+                    'status' => $statusCode,
+                    'body' => $body,
+                ]);
+                throw new \Exception("Database of Things image search returned status {$statusCode}");
+            }
+
+            // Filter by minimum similarity and normalize image URLs
+            $results = array_filter($data ?? [], function ($result) use ($minSimilarity) {
+                return ($result['similarity'] ?? 0) >= $minSimilarity;
+            });
+
+            // Normalize image URLs in results
+            $results = array_map(function ($result) {
+                if (isset($result['image_url'])) {
+                    $result['image_url'] = $this->normalizeImageUrl($result['image_url']);
+                }
+                if (isset($result['thumbnail_url'])) {
+                    $result['thumbnail_url'] = $this->normalizeImageUrl($result['thumbnail_url']);
+                }
+
+                return $result;
+            }, $results);
+
+            return array_values($results);
+
+        } catch (GuzzleException $e) {
+            Log::error('Database of Things image search connection failed', [
+                'message' => $e->getMessage(),
+            ]);
+            throw new \Exception('Failed to connect to Database of Things for image search: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Search for items by uploading an image file
+     *
+     * @param  string  $imagePath  Path to uploaded image
+     * @param  int  $limit  Number of results to return
+     * @param  float  $minSimilarity  Minimum similarity threshold
+     * @param  string|null  $mimeType  MIME type of the image (optional)
+     * @return array Search results
+     */
+    public function searchByImageFile(string $imagePath, int $limit = 20, float $minSimilarity = 0.75, ?string $mimeType = null): array
+    {
+        // Step 1: Generate embedding from image
+        $embedding = $this->generateImageEmbedding($imagePath, $mimeType);
+
+        // Step 2: Search DBoT using the embedding
+        return $this->searchByImageEmbedding($embedding, $limit, $minSimilarity);
+    }
 }

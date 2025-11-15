@@ -46,6 +46,17 @@ type Entity {
     parents: [Entity!]  # Parent collections (only populated in hierarchy queries)
 }
 
+# Image search result with parent entity information
+type ImageSearchResult {
+    image_id: ID!
+    image_url: String!
+    thumbnail_url: String!
+    similarity: Float!  # 0.0 to 1.0 (higher = more similar)
+    parent_type: String!  # 'entity', 'variant', or 'component'
+    parent_id: ID!
+    parent_name: String!
+}
+
 # Database of Things PageInfo for cursor-based pagination
 type DatabaseOfThingsPageInfo {
     hasNextPage: Boolean!
@@ -600,6 +611,19 @@ type Mutation {
     ): AddCollectionResult!
         @guard
         @field(resolver: "App\\GraphQL\\Mutations\\AddCollectionToWishlist")
+
+    # ===== IMAGE SEARCH =====
+
+    """
+    Search for items by uploading an image.
+    Uses CLIP embeddings to find visually similar items in the Database of Things.
+    """
+    searchByImage(
+        image: Upload! @rules(apply: ["required", "image", "max:10240"])  # Max 10MB
+        limit: Int @rules(apply: ["integer", "min:1", "max:50"])
+        min_similarity: Float @rules(apply: ["numeric", "min:0", "max:1"])
+    ): [ImageSearchResult!]!
+        @field(resolver: "App\\GraphQL\\Mutations\\SearchByImage")
 }
 
 """

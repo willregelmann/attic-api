@@ -52,4 +52,8 @@ return [
         ],
     ],
 
+    'clip' => [
+        'url' => env('CLIP_SERVICE_URL', 'http://clip-service:8001'),
+    ],
+
 ];
