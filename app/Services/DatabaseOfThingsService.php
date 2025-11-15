@@ -89,11 +89,32 @@ class DatabaseOfThingsService
      */
     private function normalizeEntityImages(array $entity): array
     {
-        if (isset($entity['image_url'])) {
-            $entity['image_url'] = $this->normalizeImageUrl($entity['image_url']);
+        // Handle new image schema - entity_primary_image is a GraphQL connection (imagesConnection)
+        if (isset($entity['entity_primary_image'])) {
+            $primaryImageConnection = $entity['entity_primary_image'];
+
+            // Extract image from connection structure: edges -> node -> fields
+            if (isset($primaryImageConnection['edges'][0]['node'])) {
+                $primaryImage = $primaryImageConnection['edges'][0]['node'];
+                $entity['image_url'] = $this->normalizeImageUrl($primaryImage['image_url'] ?? null);
+                $entity['thumbnail_url'] = $this->normalizeImageUrl($primaryImage['thumbnail_url'] ?? null);
+            } else {
+                // No image in connection, set to null
+                $entity['image_url'] = null;
+                $entity['thumbnail_url'] = null;
+            }
+
+            // Remove the nested object to maintain backward compatibility
+            unset($entity['entity_primary_image']);
         }
-        if (isset($entity['thumbnail_url'])) {
-            $entity['thumbnail_url'] = $this->normalizeImageUrl($entity['thumbnail_url']);
+        // Legacy support: direct image_url/thumbnail_url fields (can be removed once DBoT fully migrated)
+        elseif (isset($entity['image_url']) || isset($entity['thumbnail_url'])) {
+            if (isset($entity['image_url'])) {
+                $entity['image_url'] = $this->normalizeImageUrl($entity['image_url']);
+            }
+            if (isset($entity['thumbnail_url'])) {
+                $entity['thumbnail_url'] = $this->normalizeImageUrl($entity['thumbnail_url']);
+            }
         }
 
         // Flatten entity_variants from GraphQL connection structure to JSON array
@@ -119,12 +140,32 @@ class DatabaseOfThingsService
                 if (isset($edge['node'])) {
                     $variant = $edge['node'];
 
-                    // Normalize image URLs in the variant
-                    if (isset($variant['image_url'])) {
-                        $variant['image_url'] = $this->normalizeImageUrl($variant['image_url']);
+                    // Handle new image schema - variant_primary_image is a GraphQL connection (imagesConnection)
+                    if (isset($variant['variant_primary_image'])) {
+                        $primaryImageConnection = $variant['variant_primary_image'];
+
+                        // Extract image from connection structure: edges -> node -> fields
+                        if (isset($primaryImageConnection['edges'][0]['node'])) {
+                            $primaryImage = $primaryImageConnection['edges'][0]['node'];
+                            $variant['image_url'] = $this->normalizeImageUrl($primaryImage['image_url'] ?? null);
+                            $variant['thumbnail_url'] = $this->normalizeImageUrl($primaryImage['thumbnail_url'] ?? null);
+                        } else {
+                            // No image in connection, set to null
+                            $variant['image_url'] = null;
+                            $variant['thumbnail_url'] = null;
+                        }
+
+                        // Remove the nested object to maintain backward compatibility
+                        unset($variant['variant_primary_image']);
                     }
-                    if (isset($variant['thumbnail_url'])) {
-                        $variant['thumbnail_url'] = $this->normalizeImageUrl($variant['thumbnail_url']);
+                    // Legacy support: direct image_url/thumbnail_url fields
+                    else {
+                        if (isset($variant['image_url'])) {
+                            $variant['image_url'] = $this->normalizeImageUrl($variant['image_url']);
+                        }
+                        if (isset($variant['thumbnail_url'])) {
+                            $variant['thumbnail_url'] = $this->normalizeImageUrl($variant['thumbnail_url']);
+                        }
                     }
 
                     $variants[] = $variant;
@@ -207,25 +248,18 @@ class DatabaseOfThingsService
                             id
                             name
                             type
+                            attributes
                             year
                             country
-                            attributes
-                            image_url
-                            thumbnail_url
                             external_ids
-                            entity_variants {
+                            entity_primary_image {
                                 edges {
                                     node {
-                                        id
-                                        name
-                                        attributes
                                         image_url
                                         thumbnail_url
                                     }
                                 }
                             }
-                            created_at
-                            updated_at
                         }
                     }
                 }
@@ -250,6 +284,7 @@ class DatabaseOfThingsService
      */
     public function getCollectionItems(string $collectionId, int $first = 100, ?string $after = null): array
     {
+        // Step 1: Fetch relationship edges to get to_id and order
         $query = '
             query($collectionId: UUID!, $first: Int!, $after: Cursor) {
                 relationshipsCollection(
@@ -264,28 +299,6 @@ class DatabaseOfThingsService
                         node {
                             to_id
                             order
-                            entities {
-                                id
-                                name
-                                type
-                                year
-                                country
-                                attributes
-                                image_url
-                                thumbnail_url
-                                external_ids
-                                entity_variants {
-                                    edges {
-                                        node {
-                                            id
-                                            name
-                                            attributes
-                                            image_url
-                                            thumbnail_url
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
                     pageInfo {
@@ -297,7 +310,7 @@ class DatabaseOfThingsService
         ';
 
         // Fetch all pages automatically
-        $allItems = [];
+        $allRelationships = [];
         $currentCursor = $after;
         $pageSize = 100; // Use a reasonable page size
 
@@ -314,21 +327,32 @@ class DatabaseOfThingsService
             $result = $this->query($query, $variables);
             $relationships = $result['data']['relationshipsCollection'] ?? ['edges' => [], 'pageInfo' => ['hasNextPage' => false, 'endCursor' => null]];
 
-            // Transform and collect items from this page
-            $pageItems = array_map(function ($edge) {
-                return [
-                    'entity' => $this->normalizeEntityImages($edge['node']['entities']),
-                    'order' => $edge['node']['order'] ?? 0,
-                ];
-            }, $relationships['edges']);
-
-            $allItems = array_merge($allItems, $pageItems);
+            // Collect relationships from this page
+            $allRelationships = array_merge($allRelationships, $relationships['edges']);
 
             $hasNextPage = $relationships['pageInfo']['hasNextPage'] ?? false;
             $currentCursor = $relationships['pageInfo']['endCursor'] ?? null;
 
             // Continue fetching until we have enough items or no more pages
-        } while ($hasNextPage && count($allItems) < $first);
+        } while ($hasNextPage && count($allRelationships) < $first);
+
+        // Step 2: Extract entity IDs and batch fetch entities
+        $entityIds = array_map(fn($edge) => $edge['node']['to_id'], $allRelationships);
+        $entities = $this->getEntitiesByIds($entityIds);
+
+        // Step 3: Match entities with their order from relationships
+        $allItems = array_map(function ($edge) use ($entities) {
+            $toId = $edge['node']['to_id'];
+            $entity = $entities[$toId] ?? null;
+
+            return [
+                'entity' => $entity,
+                'order' => $edge['node']['order'] ?? 0,
+            ];
+        }, $allRelationships);
+
+        // Filter out any items where entity wasn't found
+        $allItems = array_filter($allItems, fn($item) => $item['entity'] !== null);
 
         // Sort items by order field
         usort($allItems, function ($a, $b) {
@@ -372,18 +396,13 @@ class DatabaseOfThingsService
                             id
                             name
                             type
+                            attributes
                             year
                             country
-                            attributes
-                            image_url
-                            thumbnail_url
                             external_ids
-                            entity_variants {
+                            entity_primary_image {
                                 edges {
                                     node {
-                                        id
-                                        name
-                                        attributes
                                         image_url
                                         thumbnail_url
                                     }
@@ -431,25 +450,20 @@ class DatabaseOfThingsService
                     filter: {type: {eq: "collection"}},
                     first: $first,
                     after: $after,
-                    orderBy: {year: DescNullsLast}
+                    orderBy: {name: AscNullsLast}
                 ) {
                     edges {
                         node {
                             id
                             name
                             type
+                            attributes
                             year
                             country
-                            attributes
-                            image_url
-                            thumbnail_url
                             external_ids
-                            entity_variants {
+                            entity_primary_image {
                                 edges {
                                     node {
-                                        id
-                                        name
-                                        attributes
                                         image_url
                                         thumbnail_url
                                     }
@@ -500,25 +514,35 @@ class DatabaseOfThingsService
                             id
                             name
                             type
+                            attributes
                             year
                             country
-                            attributes
-                            image_url
-                            thumbnail_url
                             external_ids
+                            entity_primary_image {
+                                edges {
+                                    node {
+                                        image_url
+                                        thumbnail_url
+                                    }
+                                }
+                            }
                             entity_variants {
                                 edges {
                                     node {
                                         id
                                         name
                                         attributes
-                                        image_url
-                                        thumbnail_url
+                                        variant_primary_image {
+                                            edges {
+                                                node {
+                                                    image_url
+                                                    thumbnail_url
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
-                            created_at
-                            updated_at
                         }
                     }
                 }
@@ -553,20 +577,32 @@ class DatabaseOfThingsService
                             id
                             name
                             type
+                            attributes
                             year
                             country
-                            attributes
-                            image_url
-                            thumbnail_url
                             external_ids
+                            entity_primary_image {
+                                edges {
+                                    node {
+                                        image_url
+                                        thumbnail_url
+                                    }
+                                }
+                            }
                             entity_variants {
                                 edges {
                                     node {
                                         id
                                         name
                                         attributes
-                                        image_url
-                                        thumbnail_url
+                                        variant_primary_image {
+                                            edges {
+                                                node {
+                                                    image_url
+                                                    thumbnail_url
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -767,7 +803,7 @@ class DatabaseOfThingsService
             return $results;
         }
 
-        // Build GraphQL query for fetching collection items
+        // Build GraphQL query for fetching collection relationship IDs
         $query = '
             query($collectionId: UUID!, $first: Int!) {
                 relationshipsCollection(
@@ -781,28 +817,6 @@ class DatabaseOfThingsService
                         node {
                             to_id
                             order
-                            entities {
-                                id
-                                name
-                                type
-                                year
-                                country
-                                attributes
-                                image_url
-                                thumbnail_url
-                                external_ids
-                                entity_variants {
-                                    edges {
-                                        node {
-                                            id
-                                            name
-                                            attributes
-                                            image_url
-                                            thumbnail_url
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
                     pageInfo {
@@ -837,54 +851,75 @@ class DatabaseOfThingsService
             }
         };
 
+        // Store relationships temporarily (will fetch entities after)
+        $relationshipData = [];
+
         // Execute requests in parallel
         $pool = new Pool($this->client, $requests(), [
             'concurrency' => 5, // Limit concurrent requests to avoid overwhelming the API
-            'fulfilled' => function (Response $response, $collectionId) use (&$results, $first) {
+            'fulfilled' => function (Response $response, $collectionId) use (&$relationshipData) {
                 $body = json_decode($response->getBody()->getContents(), true);
 
                 if (isset($body['data']['relationshipsCollection'])) {
                     $relationships = $body['data']['relationshipsCollection'];
-
-                    // Transform items
-                    $items = array_map(function ($edge) {
-                        return [
-                            'entity' => $this->normalizeEntityImages($edge['node']['entities']),
-                            'order' => $edge['node']['order'] ?? 0,
-                        ];
-                    }, $relationships['edges'] ?? []);
-
-                    // Sort by order
-                    usort($items, fn ($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
-
-                    $result = [
-                        'items' => $items,
+                    $relationshipData[$collectionId] = [
+                        'edges' => $relationships['edges'] ?? [],
                         'pageInfo' => $relationships['pageInfo'] ?? ['hasNextPage' => false, 'endCursor' => null],
                     ];
-
-                    $results[$collectionId] = $result;
-
-                    // Cache the result for 1 hour
-                    $cacheKey = "collection_items:{$collectionId}:{$first}:null";
-                    Cache::put($cacheKey, $result, 3600);
                 } else {
                     Log::warning("Failed to fetch collection items for {$collectionId}", [
                         'response' => $body,
                     ]);
-                    $results[$collectionId] = ['items' => [], 'pageInfo' => ['hasNextPage' => false, 'endCursor' => null]];
+                    $relationshipData[$collectionId] = ['edges' => [], 'pageInfo' => ['hasNextPage' => false, 'endCursor' => null]];
                 }
             },
-            'rejected' => function ($reason, $collectionId) use (&$results) {
+            'rejected' => function ($reason, $collectionId) use (&$relationshipData) {
                 Log::error("Failed to fetch collection items for {$collectionId}", [
                     'reason' => (string) $reason,
                 ]);
-                $results[$collectionId] = ['items' => [], 'pageInfo' => ['hasNextPage' => false, 'endCursor' => null]];
+                $relationshipData[$collectionId] = ['edges' => [], 'pageInfo' => ['hasNextPage' => false, 'endCursor' => null]];
             },
         ]);
 
         // Execute the pool
         $promise = $pool->promise();
         $promise->wait();
+
+        // Step 2: Collect all entity IDs and batch fetch
+        $allEntityIds = [];
+        foreach ($relationshipData as $collectionId => $data) {
+            foreach ($data['edges'] as $edge) {
+                $allEntityIds[] = $edge['node']['to_id'];
+            }
+        }
+        $allEntityIds = array_unique($allEntityIds);
+        $entities = $this->getEntitiesByIds($allEntityIds);
+
+        // Step 3: Match entities to collections and build results
+        foreach ($relationshipData as $collectionId => $data) {
+            $items = array_map(function ($edge) use ($entities) {
+                $toId = $edge['node']['to_id'];
+                return [
+                    'entity' => $entities[$toId] ?? null,
+                    'order' => $edge['node']['order'] ?? 0,
+                ];
+            }, $data['edges']);
+
+            // Filter out nulls and sort
+            $items = array_filter($items, fn ($item) => $item['entity'] !== null);
+            usort($items, fn ($a, $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
+
+            $result = [
+                'items' => $items,
+                'pageInfo' => $data['pageInfo'],
+            ];
+
+            $results[$collectionId] = $result;
+
+            // Cache the result for 1 hour
+            $cacheKey = "collection_items:{$collectionId}:{$first}:null";
+            Cache::put($cacheKey, $result, 3600);
+        }
 
         return $results;
     }
