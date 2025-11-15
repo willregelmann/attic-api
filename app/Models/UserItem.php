@@ -19,7 +19,9 @@ class UserItem extends Pivot
 
     protected $fillable = [
         'user_id',
-        'entity_id', // References Database of Things entity UUID
+        'entity_id', // References Database of Things entity UUID (nullable for custom items)
+        'name', // Name for custom items (null for DBoT items)
+        'variant_id',
         'parent_collection_id',
         'metadata',
         'notes',
@@ -51,4 +53,12 @@ class UserItem extends Pivot
      * Note: entity_id references a Supabase entity UUID
      * No local Item relationship exists since canonical data is in Supabase
      */
+
+    /**
+     * Check if this is a custom item (not linked to DBoT)
+     */
+    public function isCustomItem(): bool
+    {
+        return is_null($this->entity_id);
+    }
 }

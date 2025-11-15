@@ -78,6 +78,82 @@ class UserItemMutations
     }
 
     /**
+     * Add a custom item to user's collection (not linked to DBoT)
+     */
+    public function addCustomItemToMyCollection($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
+    {
+        Log::info('Adding custom item to collection', $args);
+
+        // Get the authenticated user
+        $user = Auth::guard('sanctum')->user();
+
+        if (! $user) {
+            throw new \Exception('Unauthenticated');
+        }
+
+        $userId = $user->id;
+
+        // Validate parent collection exists and belongs to user
+        if (isset($args['parent_collection_id'])) {
+            $collection = \App\Models\UserCollection::where('id', $args['parent_collection_id'])
+                ->where('user_id', $userId)
+                ->first();
+
+            if (! $collection) {
+                throw new \Exception('Parent collection not found or does not belong to user');
+            }
+        }
+
+        // Create the UserItem record (without images initially)
+        $userItem = new UserItem;
+        $userItem->user_id = $userId;
+        $userItem->entity_id = null;  // Custom item (no DBoT entity)
+        $userItem->name = $args['name'];
+        $userItem->parent_collection_id = $args['parent_collection_id'] ?? null;
+        $userItem->notes = $args['notes'] ?? null;
+        $userItem->save();
+
+        // Handle image uploads if provided
+        if (isset($args['images']) && count($args['images']) > 0) {
+            $imageService = app(ImageUploadService::class);
+
+            try {
+                // Validate files
+                $imageService->validateFiles($args['images']);
+
+                // Process and store images (returns array of [{original, thumbnail}])
+                $processedImages = $imageService->processAndStoreImages($args['images'], $userItem->id);
+
+                // Update UserItem with image paths
+                $userItem->images = $processedImages;
+                $userItem->save();
+
+                Log::info('Images uploaded for custom UserItem', [
+                    'user_item_id' => $userItem->id,
+                    'image_count' => count($processedImages)
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Image upload failed for custom item', [
+                    'user_item_id' => $userItem->id,
+                    'error' => $e->getMessage()
+                ]);
+                throw new \Exception("Image upload failed: {$e->getMessage()}");
+            }
+        }
+
+        // Load user relationship for GraphQL response
+        $userItem->load(['user']);
+
+        Log::info('Custom UserItem created', [
+            'id' => $userItem->id,
+            'name' => $userItem->name,
+            'images_count' => count($userItem->images ?? [])
+        ]);
+
+        return $userItem;
+    }
+
+    /**
      * Update user's item metadata and images
      */
     public function updateMyItem($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)

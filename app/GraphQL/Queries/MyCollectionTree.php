@@ -75,8 +75,10 @@ class MyCollectionTree
             $entityIds = array_keys($allDbotItems);
         } else {
             // For regular collections, fetch entities for owned/wishlisted items
+            // Filter out null entity_ids (custom items)
             $entityIds = $items->pluck('entity_id')
                 ->merge($wishlists->pluck('entity_id'))
+                ->filter()  // Remove null values (custom items)
                 ->unique()
                 ->values()
                 ->toArray();
@@ -197,10 +199,8 @@ class MyCollectionTree
         } else {
             // For regular collections, only show owned and wishlisted items
             foreach ($items as $item) {
-                $entityId = $item->entity_id;
-                $entity = $entities[$entityId] ?? null;
-
-                if ($entity) {
+                if ($item->isCustomItem()) {
+                    // Custom item - use data from user_items table
                     $transformedItems[] = [
                         // UserItem fields
                         'user_item_id' => $item->id,
@@ -213,21 +213,55 @@ class MyCollectionTree
                         'user_created_at' => $item->created_at,
                         'user_updated_at' => $item->updated_at,
 
-                        // Entity fields
-                        'id' => $entity['id'],
-                        'type' => $entity['type'],
-                        'name' => $entity['name'],
-                        'year' => $entity['year'] ?? null,
-                        'country' => $entity['country'] ?? null,
-                        'attributes' => $entity['attributes'] ?? null,
-                        'image_url' => $entity['image_url'] ?? null,
-                        'thumbnail_url' => $entity['thumbnail_url'] ?? null,
-                        'representative_image_urls' => $entity['representative_image_urls'] ?? [],
-                        'external_ids' => $entity['external_ids'] ?? null,
-                        'entity_variants' => $entity['entity_variants'] ?? null,
-                        'created_at' => $entity['created_at'] ?? null,
-                        'updated_at' => $entity['updated_at'] ?? null,
+                        // Entity fields (mostly null for custom items)
+                        'id' => null,
+                        'type' => 'custom',
+                        'name' => $item->name,
+                        'year' => null,
+                        'country' => null,
+                        'attributes' => null,
+                        'image_url' => $item->images[0]['original'] ?? null,
+                        'thumbnail_url' => $item->images[0]['thumbnail'] ?? null,
+                        'representative_image_urls' => [],
+                        'external_ids' => null,
+                        'entity_variants' => [],
+                        'created_at' => null,
+                        'updated_at' => null,
                     ];
+                } else {
+                    // DBoT item - fetch entity data
+                    $entityId = $item->entity_id;
+                    $entity = $entities[$entityId] ?? null;
+
+                    if ($entity) {
+                        $transformedItems[] = [
+                            // UserItem fields
+                            'user_item_id' => $item->id,
+                            'user_id' => $item->user_id,
+                            'parent_collection_id' => $item->parent_collection_id,
+                            'variant_id' => $item->variant_id,
+                            'user_metadata' => $item->metadata,
+                            'user_notes' => $item->notes,
+                            'user_images' => $item->images,
+                            'user_created_at' => $item->created_at,
+                            'user_updated_at' => $item->updated_at,
+
+                            // Entity fields
+                            'id' => $entity['id'],
+                            'type' => $entity['type'],
+                            'name' => $entity['name'],
+                            'year' => $entity['year'] ?? null,
+                            'country' => $entity['country'] ?? null,
+                            'attributes' => $entity['attributes'] ?? null,
+                            'image_url' => $entity['image_url'] ?? null,
+                            'thumbnail_url' => $entity['thumbnail_url'] ?? null,
+                            'representative_image_urls' => $entity['representative_image_urls'] ?? [],
+                            'external_ids' => $entity['external_ids'] ?? null,
+                            'entity_variants' => $entity['entity_variants'] ?? null,
+                            'created_at' => $entity['created_at'] ?? null,
+                            'updated_at' => $entity['updated_at'] ?? null,
+                        ];
+                    }
                 }
             }
 

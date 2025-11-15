@@ -93,12 +93,14 @@ type User {
 }
 
 # User item ownership (pivot with metadata)
-# entity_id references Database of Things entity UUID (canonical collectibles data)
+# entity_id references Database of Things entity UUID (canonical collectibles data, nullable for custom items)
 # variant_id references a specific variant from entity_variants (null = base item)
+# name is used for custom items (null for DBoT items)
 type UserItem {
     id: ID!
     user_id: ID!
-    entity_id: ID!
+    entity_id: ID
+    name: String
     variant_id: ID
     parent_collection_id: ID
     metadata: JSON
@@ -112,6 +114,7 @@ type UserItem {
 
 # User item with full entity data (for My Collection view)
 # Combines UserItem fields with Entity data from Database of Things
+# For custom items, entity fields are null except name (from user_items.name)
 type UserItemWithEntity {
     # UserItem fields
     user_item_id: ID!
@@ -124,9 +127,9 @@ type UserItemWithEntity {
     user_created_at: DateTime!
     user_updated_at: DateTime!
 
-    # Entity fields (from Database of Things)
-    id: ID!
-    type: String!
+    # Entity fields (from Database of Things, nullable for custom items)
+    id: ID
+    type: String
     name: String!
     year: Int
     country: String
@@ -425,6 +428,14 @@ type Mutation {
         notes: String
         images: [Upload!]  # GraphQL multipart upload
     ): UserItem! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserItemMutations@addItemToMyCollection")
+
+    # Add custom item directly to user's collection (no entity_id)
+    addCustomItemToMyCollection(
+        name: String! @rules(apply: ["required", "min:1", "max:255"])
+        parent_collection_id: ID
+        notes: String
+        images: [Upload!]  # GraphQL multipart upload
+    ): UserItem! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Mutations\\UserItemMutations@addCustomItemToMyCollection")
 
     # Update user's item (user_item_id targets specific copy)
     updateMyItem(
