@@ -26,6 +26,11 @@ class MyCollectionTree
         $user = auth()->user();
         $parentId = $args['parent_id'] ?? null;
 
+        // Handle string "null" being passed from frontend
+        if ($parentId === 'null' || $parentId === '') {
+            $parentId = null;
+        }
+
         // Get collections at this level
         $collections = $this->service->getCollectionTree($user->id, $parentId);
 

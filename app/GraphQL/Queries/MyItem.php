@@ -40,6 +40,38 @@ class MyItem
             return null; // Item not found or doesn't belong to user
         }
 
+        // Check if this is a custom item (no entity_id)
+        if ($userItem->isCustomItem()) {
+            // Return custom item data directly from user_items table
+            return [
+                // UserItem fields
+                'user_item_id' => $userItem->id,
+                'user_id' => $userItem->user_id,
+                'parent_collection_id' => $userItem->parent_collection_id,
+                'variant_id' => $userItem->variant_id,
+                'user_metadata' => $userItem->metadata,
+                'user_notes' => $userItem->notes,
+                'user_images' => $userItem->images,
+                'user_created_at' => $userItem->created_at,
+                'user_updated_at' => $userItem->updated_at,
+
+                // Entity fields (mostly null for custom items)
+                'id' => null,
+                'type' => 'custom',
+                'name' => $userItem->name,
+                'year' => null,
+                'country' => null,
+                'attributes' => null,
+                'image_url' => $userItem->images[0]['original'] ?? null,
+                'thumbnail_url' => $userItem->images[0]['thumbnail'] ?? null,
+                'representative_image_urls' => [],
+                'external_ids' => null,
+                'entity_variants' => [],
+                'created_at' => null,
+                'updated_at' => null,
+            ];
+        }
+
         // Fetch entity data from Database of Things
         $entity = $this->databaseOfThings->getEntity($userItem->entity_id);
 

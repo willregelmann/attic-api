@@ -298,11 +298,11 @@ class UserCollectionService
             throw new \Exception('DBoT collection not found');
         }
 
-        // Create user_collection record with 'linked' type
+        // Create user_collection record
+        // Note: 'type' is computed from linked_dbot_collection_id via model accessor
         return UserCollection::create([
             'user_id' => $userId,
             'name' => $name,
-            'type' => 'linked',
             'linked_dbot_collection_id' => $dbotCollectionId,
             'parent_collection_id' => $parentCollectionId,
         ]);

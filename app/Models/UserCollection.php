@@ -16,7 +16,6 @@ class UserCollection extends Model
         'user_id',
         'parent_collection_id',
         'name',
-        'type',
         'description',
         'custom_image',  // Keep for backward compatibility (deprecated)
         'images',  // NEW: array of image objects
@@ -67,5 +66,14 @@ class UserCollection extends Model
     public function wishlists(): HasMany
     {
         return $this->hasMany(Wishlist::class, 'parent_collection_id');
+    }
+
+    /**
+     * Computed accessor for type field
+     * Returns 'linked' if collection is linked to a DBoT collection, otherwise 'custom'
+     */
+    public function getTypeAttribute(): string
+    {
+        return $this->linked_dbot_collection_id ? 'linked' : 'custom';
     }
 }

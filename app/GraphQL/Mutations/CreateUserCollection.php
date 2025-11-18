@@ -31,14 +31,11 @@ class CreateUserCollection
             $customImage = Storage::disk('public')->url($path);
         }
 
-        // Determine collection type based on whether it's linked to DBoT
-        $type = isset($args['linked_dbot_collection_id']) ? 'linked' : 'custom';
-
         // Create collection
+        // Note: 'type' is computed from linked_dbot_collection_id via model accessor
         $collection = UserCollection::create([
             'user_id' => $user->id,
             'name' => $args['name'],
-            'type' => $type,
             'description' => $args['description'] ?? null,
             'parent_collection_id' => $args['parent_id'] ?? null,
             'linked_dbot_collection_id' => $args['linked_dbot_collection_id'] ?? null,

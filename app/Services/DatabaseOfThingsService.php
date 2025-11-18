@@ -89,32 +89,49 @@ class DatabaseOfThingsService
      */
     private function normalizeEntityImages(array $entity): array
     {
-        // Handle new image schema - entity_primary_image is a GraphQL connection (imagesConnection)
-        if (isset($entity['entity_primary_image'])) {
-            $primaryImageConnection = $entity['entity_primary_image'];
+        // Handle multiple DBoT data formats:
+        // 1. GraphQL queries: entities have flat image_url + images { thumbnail_url } relationship
+        // 2. REST API (semantic search): images is a raw JSONB array from database
+        // - Normalize to flat image_url and thumbnail_url for backward compatibility
 
-            // Extract image from connection structure: edges -> node -> fields
-            if (isset($primaryImageConnection['edges'][0]['node'])) {
-                $primaryImage = $primaryImageConnection['edges'][0]['node'];
-                $entity['image_url'] = $this->normalizeImageUrl($primaryImage['image_url'] ?? null);
-                $entity['thumbnail_url'] = $this->normalizeImageUrl($primaryImage['thumbnail_url'] ?? null);
-            } else {
-                // No image in connection, set to null
-                $entity['image_url'] = null;
-                $entity['thumbnail_url'] = null;
+        // image_url can be a flat field on entities OR come from the images relationship/array
+        if (isset($entity['image_url']) && $entity['image_url']) {
+            $entity['image_url'] = $this->normalizeImageUrl($entity['image_url']);
+        } elseif (isset($entity['images']) && is_array($entity['images'])) {
+            // Handle images as either object (GraphQL) or sequential array (REST API)
+            // Use array_is_list to check if it's a sequential array (REST) vs associative (GraphQL)
+            if (array_is_list($entity['images'])) {
+                // images is a sequential array (REST API format) - use first image
+                if (!empty($entity['images'])) {
+                    $firstImage = $entity['images'][0];
+                    if (is_string($firstImage)) {
+                        // Array of URL strings
+                        $entity['image_url'] = $this->normalizeImageUrl($firstImage);
+                    } elseif (is_array($firstImage) && isset($firstImage['url'])) {
+                        // Array of image objects with url/thumbnail
+                        $entity['image_url'] = $this->normalizeImageUrl($firstImage['url']);
+                        if (isset($firstImage['thumbnail'])) {
+                            $entity['thumbnail_url'] = $this->normalizeImageUrl($firstImage['thumbnail']);
+                        }
+                    }
+                }
+            } elseif (isset($entity['images']['image_url']) && $entity['images']['image_url']) {
+                // Associative array from GraphQL images relationship
+                $entity['image_url'] = $this->normalizeImageUrl($entity['images']['image_url']);
             }
-
-            // Remove the nested object to maintain backward compatibility
-            unset($entity['entity_primary_image']);
         }
-        // Legacy support: direct image_url/thumbnail_url fields (can be removed once DBoT fully migrated)
-        elseif (isset($entity['image_url']) || isset($entity['thumbnail_url'])) {
-            if (isset($entity['image_url'])) {
-                $entity['image_url'] = $this->normalizeImageUrl($entity['image_url']);
-            }
-            if (isset($entity['thumbnail_url'])) {
-                $entity['thumbnail_url'] = $this->normalizeImageUrl($entity['thumbnail_url']);
-            }
+
+        // thumbnail_url comes from the images relationship
+        if (isset($entity['images']['thumbnail_url'])) {
+            $entity['thumbnail_url'] = $this->normalizeImageUrl($entity['images']['thumbnail_url']);
+        } elseif (isset($entity['thumbnail_url']) && $entity['thumbnail_url']) {
+            // Direct thumbnail_url field (exists on variants, not entities)
+            $entity['thumbnail_url'] = $this->normalizeImageUrl($entity['thumbnail_url']);
+        }
+
+        // Remove images relationship/array to maintain flat structure
+        if (isset($entity['images'])) {
+            unset($entity['images']);
         }
 
         // Flatten entity_variants from GraphQL connection structure to JSON array
@@ -140,32 +157,12 @@ class DatabaseOfThingsService
                 if (isset($edge['node'])) {
                     $variant = $edge['node'];
 
-                    // Handle new image schema - variant_primary_image is a GraphQL connection (imagesConnection)
-                    if (isset($variant['variant_primary_image'])) {
-                        $primaryImageConnection = $variant['variant_primary_image'];
-
-                        // Extract image from connection structure: edges -> node -> fields
-                        if (isset($primaryImageConnection['edges'][0]['node'])) {
-                            $primaryImage = $primaryImageConnection['edges'][0]['node'];
-                            $variant['image_url'] = $this->normalizeImageUrl($primaryImage['image_url'] ?? null);
-                            $variant['thumbnail_url'] = $this->normalizeImageUrl($primaryImage['thumbnail_url'] ?? null);
-                        } else {
-                            // No image in connection, set to null
-                            $variant['image_url'] = null;
-                            $variant['thumbnail_url'] = null;
-                        }
-
-                        // Remove the nested object to maintain backward compatibility
-                        unset($variant['variant_primary_image']);
+                    // Variants have flat image_url and thumbnail_url fields
+                    if (isset($variant['image_url'])) {
+                        $variant['image_url'] = $this->normalizeImageUrl($variant['image_url']);
                     }
-                    // Legacy support: direct image_url/thumbnail_url fields
-                    else {
-                        if (isset($variant['image_url'])) {
-                            $variant['image_url'] = $this->normalizeImageUrl($variant['image_url']);
-                        }
-                        if (isset($variant['thumbnail_url'])) {
-                            $variant['thumbnail_url'] = $this->normalizeImageUrl($variant['thumbnail_url']);
-                        }
+                    if (isset($variant['thumbnail_url'])) {
+                        $variant['thumbnail_url'] = $this->normalizeImageUrl($variant['thumbnail_url']);
                     }
 
                     $variants[] = $variant;
@@ -252,13 +249,10 @@ class DatabaseOfThingsService
                             year
                             country
                             external_ids
-                            entity_primary_image {
-                                edges {
-                                    node {
-                                        image_url
-                                        thumbnail_url
-                                    }
-                                }
+                            image_url
+                            images {
+                                image_url
+                                thumbnail_url
                             }
                         }
                     }
@@ -289,8 +283,7 @@ class DatabaseOfThingsService
             query($collectionId: UUID!, $first: Int!, $after: Cursor) {
                 relationshipsCollection(
                     filter: {
-                        from_id: {eq: $collectionId},
-                        type: {eq: "contains"}
+                        from_id: {eq: $collectionId}
                     },
                     first: $first,
                     after: $after
@@ -400,13 +393,10 @@ class DatabaseOfThingsService
                             year
                             country
                             external_ids
-                            entity_primary_image {
-                                edges {
-                                    node {
-                                        image_url
-                                        thumbnail_url
-                                    }
-                                }
+                            image_url
+                            images {
+                                image_url
+                                thumbnail_url
                             }
                         }
                     }
@@ -461,13 +451,10 @@ class DatabaseOfThingsService
                             year
                             country
                             external_ids
-                            entity_primary_image {
-                                edges {
-                                    node {
-                                        image_url
-                                        thumbnail_url
-                                    }
-                                }
+                            image_url
+                            images {
+                                image_url
+                                thumbnail_url
                             }
                         }
                     }
@@ -518,13 +505,10 @@ class DatabaseOfThingsService
                             year
                             country
                             external_ids
-                            entity_primary_image {
-                                edges {
-                                    node {
-                                        image_url
-                                        thumbnail_url
-                                    }
-                                }
+                            image_url
+                            images {
+                                image_url
+                                thumbnail_url
                             }
                             entity_variants {
                                 edges {
@@ -532,14 +516,8 @@ class DatabaseOfThingsService
                                         id
                                         name
                                         attributes
-                                        variant_primary_image {
-                                            edges {
-                                                node {
-                                                    image_url
-                                                    thumbnail_url
-                                                }
-                                            }
-                                        }
+                                        image_url
+                                        thumbnail_url
                                     }
                                 }
                             }
@@ -581,13 +559,10 @@ class DatabaseOfThingsService
                             year
                             country
                             external_ids
-                            entity_primary_image {
-                                edges {
-                                    node {
-                                        image_url
-                                        thumbnail_url
-                                    }
-                                }
+                            image_url
+                            images {
+                                image_url
+                                thumbnail_url
                             }
                             entity_variants {
                                 edges {
@@ -595,14 +570,8 @@ class DatabaseOfThingsService
                                         id
                                         name
                                         attributes
-                                        variant_primary_image {
-                                            edges {
-                                                node {
-                                                    image_url
-                                                    thumbnail_url
-                                                }
-                                            }
-                                        }
+                                        image_url
+                                        thumbnail_url
                                     }
                                 }
                             }
@@ -708,8 +677,7 @@ class DatabaseOfThingsService
             query($itemId: UUID!) {
                 relationshipsCollection(
                     filter: {
-                        to_id: {eq: $itemId},
-                        type: {eq: "contains"}
+                        to_id: {eq: $itemId}
                     }
                 ) {
                     edges {
@@ -808,8 +776,7 @@ class DatabaseOfThingsService
             query($collectionId: UUID!, $first: Int!) {
                 relationshipsCollection(
                     filter: {
-                        from_id: {eq: $collectionId},
-                        type: {eq: "contains"}
+                        from_id: {eq: $collectionId}
                     },
                     first: $first
                 ) {
@@ -941,8 +908,7 @@ class DatabaseOfThingsService
             query($collectionId: UUID!, $first: Int!, $after: Cursor) {
                 relationshipsCollection(
                     filter: {
-                        from_id: {eq: $collectionId},
-                        type: {eq: "contains"}
+                        from_id: {eq: $collectionId}
                     },
                     first: $first,
                     after: $after
@@ -999,8 +965,7 @@ class DatabaseOfThingsService
             query($itemIds: [UUID!]!, $first: Int!, $after: Cursor) {
                 relationshipsCollection(
                     filter: {
-                        to_id: {in: $itemIds},
-                        type: {eq: "contains"}
+                        to_id: {in: $itemIds}
                     },
                     first: $first,
                     after: $after
