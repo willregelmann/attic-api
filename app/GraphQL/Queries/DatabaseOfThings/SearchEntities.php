@@ -19,20 +19,28 @@ class SearchEntities
      * Search entities in Database of Things
      *
      * @param  mixed  $rootValue
-     * @return array
+     * @return array EntityConnection
      */
     public function __invoke($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
     {
         $query = $args['query'];
         $type = $args['type'] ?? null;
+        $category = $args['category'] ?? null;
         $first = $args['first'] ?? 50;
+        $after = $args['after'] ?? null;
 
-        $result = $this->databaseOfThings->searchEntities($query, $type, $first);
+        $result = $this->databaseOfThings->searchEntities($query, $type, $category, $first, $after);
 
-        // Transform Database of Things response to match GraphQL Entity type
-        return array_map(function ($entity) {
-            return $this->transformEntity($entity);
-        }, $result['items']);
+        // Transform to EntityConnection format
+        return [
+            'edges' => array_map(function ($entity) {
+                return [
+                    'node' => $this->transformEntity($entity),
+                    'cursor' => base64_encode('cursor:' . $entity['id']),
+                ];
+            }, $result['items']),
+            'pageInfo' => $result['pageInfo'],
+        ];
     }
 
     /**
@@ -44,12 +52,22 @@ class SearchEntities
             'id' => $entity['id'],
             'type' => $entity['type'],
             'name' => $entity['name'],
-            'year' => $entity['year'],
-            'country' => $entity['country'],
-            'attributes' => json_decode($entity['attributes'] ?? '{}', true),
+            'category' => $entity['category'] ?? null,
+            'year' => $entity['year'] ?? null,
+            'country' => $entity['country'] ?? null,
+            'language' => $entity['language'] ?? null,
+            'attributes' => is_string($entity['attributes'] ?? null)
+                ? json_decode($entity['attributes'], true)
+                : ($entity['attributes'] ?? []),
             'image_url' => $entity['image_url'] ?? null,
             'thumbnail_url' => $entity['thumbnail_url'] ?? null,
-            'external_ids' => json_decode($entity['external_ids'] ?? '{}', true),
+            'additional_images' => $entity['additional_images'] ?? [],
+            'external_ids' => is_string($entity['external_ids'] ?? null)
+                ? json_decode($entity['external_ids'], true)
+                : ($entity['external_ids'] ?? []),
+            'source_url' => $entity['source_url'] ?? null,
+            'entity_variants' => $entity['entity_variants'] ?? [],
+            'entity_components' => $entity['entity_components'] ?? [],
             'created_at' => $entity['created_at'] ?? null,
             'updated_at' => $entity['updated_at'] ?? null,
         ];
