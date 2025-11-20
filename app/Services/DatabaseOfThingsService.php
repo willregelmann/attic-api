@@ -9,6 +9,9 @@ use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use OpenTelemetry\API\Globals;
+use OpenTelemetry\API\Trace\SpanKind;
+use OpenTelemetry\API\Trace\StatusCode;
 
 /**
  * Service for interacting with the "Database of Things" GraphQL API
@@ -26,6 +29,8 @@ class DatabaseOfThingsService
 
     private string $apiKey;
 
+    private $tracer;
+
     public function __construct()
     {
         $this->baseUrl = config('services.database_of_things.url');
@@ -36,6 +41,8 @@ class DatabaseOfThingsService
             'timeout' => 10.0,
             'http_errors' => false, // We'll handle errors manually
         ]);
+
+        $this->tracer = Globals::tracerProvider()->getTracer('dbot');
     }
 
     /**
@@ -267,6 +274,21 @@ class DatabaseOfThingsService
      */
     public function query(string $query, array $variables = []): array
     {
+        // Extract operation name from query for span naming
+        $operationName = 'graphql';
+        if (preg_match('/^\s*(query|mutation)\s*(\w+)?/i', $query, $matches)) {
+            $operationName = $matches[2] ?? $matches[1];
+        }
+
+        $span = $this->tracer->spanBuilder("dbot.{$operationName}")
+            ->setSpanKind(SpanKind::KIND_CLIENT)
+            ->setAttribute('graphql.operation.type', 'query')
+            ->setAttribute('graphql.operation.name', $operationName)
+            ->setAttribute('http.url', $this->graphqlUrl)
+            ->startSpan();
+
+        $scope = $span->activate();
+
         try {
             $response = $this->client->post($this->graphqlUrl, [
                 'headers' => [
@@ -284,11 +306,14 @@ class DatabaseOfThingsService
             $body = $response->getBody()->getContents();
             $data = json_decode($body, true);
 
+            $span->setAttribute('http.status_code', $statusCode);
+
             if ($statusCode !== 200) {
                 Log::error('Database of Things API request failed', [
                     'status' => $statusCode,
                     'body' => $body,
                 ]);
+                $span->setStatus(StatusCode::STATUS_ERROR, "HTTP {$statusCode}");
                 throw new \Exception("Database of Things API returned status {$statusCode}");
             }
 
@@ -298,6 +323,7 @@ class DatabaseOfThingsService
                     'query' => $query,
                     'variables' => $variables,
                 ]);
+                $span->setStatus(StatusCode::STATUS_ERROR, 'GraphQL errors');
                 throw new \Exception('GraphQL query returned errors: '.json_encode($data['errors']));
             }
 
@@ -308,7 +334,12 @@ class DatabaseOfThingsService
                 'message' => $e->getMessage(),
                 'query' => $query,
             ]);
+            $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
+            $span->recordException($e);
             throw new \Exception('Failed to connect to Database of Things API: '.$e->getMessage());
+        } finally {
+            $scope->detach();
+            $span->end();
         }
     }
 
@@ -780,6 +811,16 @@ class DatabaseOfThingsService
             'payload' => $payload,
         ]);
 
+        $span = $this->tracer->spanBuilder('dbot.semantic_search')
+            ->setSpanKind(SpanKind::KIND_CLIENT)
+            ->setAttribute('search.query', $queryText)
+            ->setAttribute('search.limit', $limit)
+            ->setAttribute('search.entity_type', $entityType ?? 'all')
+            ->setAttribute('http.url', $url)
+            ->startSpan();
+
+        $scope = $span->activate();
+
         try {
             $response = $this->client->post($url, [
                 'headers' => [
@@ -795,6 +836,8 @@ class DatabaseOfThingsService
             $body = $response->getBody()->getContents();
             $data = json_decode($body, true);
 
+            $span->setAttribute('http.status_code', $statusCode);
+
             Log::info('Semantic search response', [
                 'status' => $statusCode,
                 'body' => $body,
@@ -805,11 +848,13 @@ class DatabaseOfThingsService
                     'status' => $statusCode,
                     'body' => $body,
                 ]);
+                $span->setStatus(StatusCode::STATUS_ERROR, "HTTP {$statusCode}");
                 throw new \Exception("Database of Things REST API returned status {$statusCode}");
             }
 
             // Normalize image URLs in search results
             $results = $data ?? [];
+            $span->setAttribute('search.result_count', count($results));
 
             return array_map(fn ($entity) => $this->normalizeEntityImages($entity), $results);
 
@@ -818,7 +863,12 @@ class DatabaseOfThingsService
                 'message' => $e->getMessage(),
                 'query' => $queryText,
             ]);
+            $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
+            $span->recordException($e);
             throw new \Exception('Failed to connect to Database of Things REST API: '.$e->getMessage());
+        } finally {
+            $scope->detach();
+            $span->end();
         }
     }
 
@@ -1360,6 +1410,14 @@ class DatabaseOfThingsService
             finfo_close($finfo);
         }
 
+        $span = $this->tracer->spanBuilder('clip.generate_embedding')
+            ->setSpanKind(SpanKind::KIND_CLIENT)
+            ->setAttribute('http.url', $url)
+            ->setAttribute('file.path', $imagePath)
+            ->startSpan();
+
+        $scope = $span->activate();
+
         try {
             $response = $this->client->post($url, [
                 'multipart' => [
@@ -1379,21 +1437,28 @@ class DatabaseOfThingsService
             $body = $response->getBody()->getContents();
             $data = json_decode($body, true);
 
+            $span->setAttribute('http.status_code', $statusCode);
+
             if ($statusCode !== 200) {
                 Log::error('CLIP service request failed', [
                     'status' => $statusCode,
                     'body' => $body,
                 ]);
+                $span->setStatus(StatusCode::STATUS_ERROR, "HTTP {$statusCode}");
                 throw new \Exception("CLIP service returned status {$statusCode}");
             }
 
             if (! isset($data['embedding'])) {
+                $span->setStatus(StatusCode::STATUS_ERROR, 'Missing embedding');
                 throw new \Exception('CLIP service response missing embedding');
             }
 
             if (count($data['embedding']) !== 512) {
+                $span->setStatus(StatusCode::STATUS_ERROR, 'Invalid dimensions');
                 throw new \Exception('CLIP service returned invalid embedding dimensions: '.count($data['embedding']));
             }
+
+            $span->setAttribute('embedding.dimensions', $data['dimensions']);
 
             Log::info('Generated image embedding', [
                 'dimensions' => $data['dimensions'],
@@ -1407,7 +1472,12 @@ class DatabaseOfThingsService
                 'message' => $e->getMessage(),
                 'path' => $imagePath,
             ]);
+            $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
+            $span->recordException($e);
             throw new \Exception('Failed to connect to CLIP service: '.$e->getMessage());
+        } finally {
+            $scope->detach();
+            $span->end();
         }
     }
 
@@ -1434,6 +1504,15 @@ class DatabaseOfThingsService
             'min_similarity' => $minSimilarity,
         ]);
 
+        $span = $this->tracer->spanBuilder('dbot.image_search')
+            ->setSpanKind(SpanKind::KIND_CLIENT)
+            ->setAttribute('http.url', $url)
+            ->setAttribute('search.limit', $limit)
+            ->setAttribute('search.min_similarity', $minSimilarity)
+            ->startSpan();
+
+        $scope = $span->activate();
+
         try {
             $response = $this->client->post($url, [
                 'headers' => [
@@ -1449,6 +1528,8 @@ class DatabaseOfThingsService
             $body = $response->getBody()->getContents();
             $data = json_decode($body, true);
 
+            $span->setAttribute('http.status_code', $statusCode);
+
             Log::info('Image similarity search response', [
                 'status' => $statusCode,
                 'result_count' => count($data ?? []),
@@ -1459,6 +1540,7 @@ class DatabaseOfThingsService
                     'status' => $statusCode,
                     'body' => $body,
                 ]);
+                $span->setStatus(StatusCode::STATUS_ERROR, "HTTP {$statusCode}");
                 throw new \Exception("Database of Things image search returned status {$statusCode}");
             }
 
@@ -1479,13 +1561,20 @@ class DatabaseOfThingsService
                 return $result;
             }, $results);
 
+            $span->setAttribute('search.result_count', count($results));
+
             return array_values($results);
 
         } catch (GuzzleException $e) {
             Log::error('Database of Things image search connection failed', [
                 'message' => $e->getMessage(),
             ]);
+            $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
+            $span->recordException($e);
             throw new \Exception('Failed to connect to Database of Things for image search: '.$e->getMessage());
+        } finally {
+            $scope->detach();
+            $span->end();
         }
     }
 
