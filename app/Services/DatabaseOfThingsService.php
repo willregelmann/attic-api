@@ -447,11 +447,13 @@ class DatabaseOfThingsService
      * Search for entities by name
      *
      * @param  string  $searchTerm  Term to search for
-     * @param  string|null  $type  Optional entity type filter (e.g., "collection", "trading_card")
+     * @param  string|null  $type  Optional entity type filter (e.g., "collection", "item")
+     * @param  string|null  $category  Optional category filter
      * @param  int  $first  Number of results to return
-     * @return array Matching entities
+     * @param  string|null  $after  Cursor for pagination
+     * @return array Matching entities with pagination info
      */
-    public function searchEntities(string $searchTerm, ?string $type = null, int $first = 50): array
+    public function searchEntities(string $searchTerm, ?string $type = null, ?string $category = null, int $first = 50, ?string $after = null): array
     {
         $filters = ['name' => ['ilike' => '%'.$searchTerm.'%']];
 
@@ -459,11 +461,16 @@ class DatabaseOfThingsService
             $filters['type'] = ['eq' => $type];
         }
 
+        if ($category !== null) {
+            $filters['category'] = ['eq' => $category];
+        }
+
         $query = '
-            query($filters: entitiesFilter!, $first: Int!) {
+            query($filters: entitiesFilter!, $first: Int!, $after: Cursor) {
                 entitiesCollection(
                     filter: $filters,
                     first: $first,
+                    after: $after,
                     orderBy: {name: AscNullsLast}
                 ) {
                     edges {
@@ -471,10 +478,13 @@ class DatabaseOfThingsService
                             id
                             name
                             type
+                            category
                             attributes
                             year
                             country
+                            language
                             external_ids
+                            source_url
                             images {
                                 image_url
                                 thumbnail_url
@@ -483,16 +493,20 @@ class DatabaseOfThingsService
                     }
                     pageInfo {
                         hasNextPage
+                        hasPreviousPage
+                        startCursor
                         endCursor
                     }
                 }
             }
         ';
 
-        $result = $this->query($query, [
-            'filters' => $filters,
-            'first' => $first,
-        ]);
+        $variables = ['filters' => $filters, 'first' => $first];
+        if ($after !== null) {
+            $variables['after'] = $after;
+        }
+
+        $result = $this->query($query, $variables);
 
         return [
             'items' => array_map(
@@ -501,6 +515,8 @@ class DatabaseOfThingsService
             ),
             'pageInfo' => $result['data']['entitiesCollection']['pageInfo'] ?? [
                 'hasNextPage' => false,
+                'hasPreviousPage' => false,
+                'startCursor' => null,
                 'endCursor' => null,
             ],
         ];
@@ -511,14 +527,21 @@ class DatabaseOfThingsService
      *
      * @param  int  $first  Number of collections to return
      * @param  string|null  $after  Cursor for pagination
+     * @param  string|null  $category  Category filter
      * @return array Collections with pagination info
      */
-    public function listCollections(int $first = 50, ?string $after = null): array
+    public function listCollections(int $first = 50, ?string $after = null, ?string $category = null): array
     {
+        $filters = ['type' => ['eq' => 'collection']];
+
+        if ($category !== null) {
+            $filters['category'] = ['eq' => $category];
+        }
+
         $query = '
-            query($first: Int!, $after: Cursor) {
+            query($filters: entitiesFilter!, $first: Int!, $after: Cursor) {
                 entitiesCollection(
-                    filter: {type: {eq: "collection"}},
+                    filter: $filters,
                     first: $first,
                     after: $after,
                     orderBy: {name: AscNullsLast}
@@ -528,10 +551,13 @@ class DatabaseOfThingsService
                             id
                             name
                             type
+                            category
                             attributes
                             year
                             country
+                            language
                             external_ids
+                            source_url
                             images {
                                 image_url
                                 thumbnail_url
@@ -540,13 +566,15 @@ class DatabaseOfThingsService
                     }
                     pageInfo {
                         hasNextPage
+                        hasPreviousPage
+                        startCursor
                         endCursor
                     }
                 }
             }
         ';
 
-        $variables = ['first' => $first];
+        $variables = ['filters' => $filters, 'first' => $first];
         if ($after !== null) {
             $variables['after'] = $after;
         }
@@ -560,6 +588,8 @@ class DatabaseOfThingsService
             ),
             'pageInfo' => $result['data']['entitiesCollection']['pageInfo'] ?? [
                 'hasNextPage' => false,
+                'hasPreviousPage' => false,
+                'startCursor' => null,
                 'endCursor' => null,
             ],
         ];
