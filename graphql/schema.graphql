@@ -376,28 +376,33 @@ type Query {
     databaseOfThingsCollections(
         first: Int = 50
         after: String
-    ): [Entity!]! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\CollectionsList")
+        category: CategoryType
+    ): EntityConnection! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\CollectionsList")
 
     # Search entities in Database of Things
     databaseOfThingsSearch(
         query: String!
-        type: String
+        type: EntityType
+        category: CategoryType
         first: Int = 50
-    ): [Entity!]! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\SearchEntities")
+        after: String
+    ): EntityConnection! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\SearchEntities")
 
     # Semantic search using vector embeddings
     databaseOfThingsSemanticSearch(
         query: String!
-        type: String
+        type: EntityType
+        category: CategoryType
         first: Int = 20
-    ): [Entity!]! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\SemanticSearch")
+        after: String
+    ): EntityConnection! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\SemanticSearch")
 
     # Get items in a Database of Things collection
     databaseOfThingsCollectionItems(
         collection_id: ID!
-        first: Int = 1000
+        first: Int = 100
         after: String
-    ): [Entity!]! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\CollectionItems")
+    ): EntityConnection! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\CollectionItems")
 
     # Get a single entity from Database of Things
     databaseOfThingsEntity(
@@ -418,6 +423,11 @@ type Query {
     databaseOfThingsCollectionParentCollections(
         collection_id: ID!
     ): [Entity!]! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\GetCollectionParentCollections")
+
+    # Get components for an entity from Database of Things
+    databaseOfThingsEntityComponents(
+        entity_id: ID!
+    ): [Component!]! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\GetEntityComponents")
 
     # ===== USER-SPECIFIC QUERIES (Auth required) =====
 
