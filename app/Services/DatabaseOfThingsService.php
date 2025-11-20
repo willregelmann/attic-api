@@ -102,7 +102,7 @@ class DatabaseOfThingsService
             // Use array_is_list to check if it's a sequential array (REST) vs associative (GraphQL)
             if (array_is_list($entity['images'])) {
                 // images is a sequential array (REST API format) - use first image
-                if (!empty($entity['images'])) {
+                if (! empty($entity['images'])) {
                     $firstImage = $entity['images'][0];
                     if (is_string($firstImage)) {
                         // Array of URL strings
@@ -139,6 +139,17 @@ class DatabaseOfThingsService
             $entity['entity_variants'] = $this->normalizeEntityVariants($entity['entity_variants']);
         }
 
+        // Flatten entity_components from GraphQL connection structure to JSON array
+        if (isset($entity['entity_components'])) {
+            $entity['entity_components'] = $this->normalizeEntityComponents($entity['entity_components']);
+        }
+
+        // Flatten entity_additional_images from GraphQL connection structure to JSON array
+        if (isset($entity['entity_additional_images'])) {
+            $entity['additional_images'] = $this->normalizeAdditionalImages($entity['entity_additional_images']);
+            unset($entity['entity_additional_images']);
+        }
+
         return $entity;
     }
 
@@ -171,6 +182,78 @@ class DatabaseOfThingsService
         }
 
         return $variants;
+    }
+
+    /**
+     * Normalize entity_components from GraphQL connection structure to array
+     *
+     * @param  array  $componentsConnection  GraphQL connection structure with edges/node
+     * @return array Array of component objects sorted by order field
+     */
+    private function normalizeEntityComponents(array $componentsConnection): array
+    {
+        $components = [];
+
+        if (isset($componentsConnection['edges']) && is_array($componentsConnection['edges'])) {
+            foreach ($componentsConnection['edges'] as $edge) {
+                if (isset($edge['node'])) {
+                    $component = $edge['node'];
+
+                    // Normalize image URLs in images relationship
+                    if (isset($component['images']['image_url'])) {
+                        $component['image_url'] = $this->normalizeImageUrl($component['images']['image_url']);
+                    }
+                    if (isset($component['images']['thumbnail_url'])) {
+                        $component['thumbnail_url'] = $this->normalizeImageUrl($component['images']['thumbnail_url']);
+                    }
+
+                    // Remove images relationship to maintain flat structure
+                    if (isset($component['images'])) {
+                        unset($component['images']);
+                    }
+
+                    $components[] = $component;
+                }
+            }
+        }
+
+        // Sort components by order field
+        usort($components, function ($a, $b) {
+            return ($a['order'] ?? 0) <=> ($b['order'] ?? 0);
+        });
+
+        return $components;
+    }
+
+    /**
+     * Normalize entity_additional_images from GraphQL connection structure to array
+     *
+     * @param  array  $additionalImagesConnection  GraphQL connection structure with edges/node
+     * @return array Array of additional image objects with {id, image_url, thumbnail_url}
+     */
+    private function normalizeAdditionalImages(array $additionalImagesConnection): array
+    {
+        $additionalImages = [];
+
+        if (isset($additionalImagesConnection['edges']) && is_array($additionalImagesConnection['edges'])) {
+            foreach ($additionalImagesConnection['edges'] as $edge) {
+                if (isset($edge['node'])) {
+                    $image = $edge['node'];
+
+                    // Normalize image URLs
+                    if (isset($image['image_url'])) {
+                        $image['image_url'] = $this->normalizeImageUrl($image['image_url']);
+                    }
+                    if (isset($image['thumbnail_url'])) {
+                        $image['thumbnail_url'] = $this->normalizeImageUrl($image['thumbnail_url']);
+                    }
+
+                    $additionalImages[] = $image;
+                }
+            }
+        }
+
+        return $additionalImages;
     }
 
     /**
@@ -329,7 +412,7 @@ class DatabaseOfThingsService
         } while ($hasNextPage && count($allRelationships) < $first);
 
         // Step 2: Extract entity IDs and batch fetch entities
-        $entityIds = array_map(fn($edge) => $edge['node']['to_id'], $allRelationships);
+        $entityIds = array_map(fn ($edge) => $edge['node']['to_id'], $allRelationships);
         $entities = $this->getEntitiesByIds($entityIds);
 
         // Step 3: Match entities with their order from relationships
@@ -344,7 +427,7 @@ class DatabaseOfThingsService
         }, $allRelationships);
 
         // Filter out any items where entity wasn't found
-        $allItems = array_filter($allItems, fn($item) => $item['entity'] !== null);
+        $allItems = array_filter($allItems, fn ($item) => $item['entity'] !== null);
 
         // Sort items by order field
         usort($allItems, function ($a, $b) {
@@ -919,6 +1002,7 @@ class DatabaseOfThingsService
         foreach ($relationshipData as $collectionId => $data) {
             $items = array_map(function ($edge) use ($entities) {
                 $toId = $edge['node']['to_id'];
+
                 return [
                     'entity' => $entities[$toId] ?? null,
                     'order' => $edge['node']['order'] ?? 0,
@@ -1072,7 +1156,7 @@ class DatabaseOfThingsService
                 continue;
             }
 
-            if (!isset($parentToItems[$parentId])) {
+            if (! isset($parentToItems[$parentId])) {
                 $parentToItems[$parentId] = [];
             }
             $parentToItems[$parentId][] = $itemId;
@@ -1128,9 +1212,10 @@ class DatabaseOfThingsService
 
         // Get the collection itself to check if it has an image
         $collection = $this->getEntity($collectionId);
-        if ($collection && !empty($collection['image_url'])) {
+        if ($collection && ! empty($collection['image_url'])) {
             // Cache and return empty array (collection has its own image)
             Cache::put($cacheKey, [], 86400); // 24 hours
+
             return [];
         }
 
@@ -1140,6 +1225,7 @@ class DatabaseOfThingsService
         if (empty($imageUrls)) {
             // No images found, cache empty array for shorter period
             Cache::put($cacheKey, [], 3600); // 1 hour for empty results
+
             return [];
         }
 
@@ -1182,7 +1268,7 @@ class DatabaseOfThingsService
 
             // If this entity has an image, collect it at current level
             // This includes both items AND collections with their own images
-            if (!empty($entity['image_url'])) {
+            if (! empty($entity['image_url'])) {
                 $currentLevelImages[] = $entity['image_url'];
             }
             // If this is a subcollection WITHOUT an image, save it for next level
