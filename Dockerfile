@@ -20,6 +20,12 @@ RUN docker-php-ext-install pdo pdo_pgsql pgsql mbstring exif pcntl bcmath gd
 # Install Redis extension
 RUN pecl install redis && docker-php-ext-enable redis
 
+# Install OpenTelemetry extension
+RUN pecl install opentelemetry && docker-php-ext-enable opentelemetry
+
+# Install Protobuf extension (required for OTLP export)
+RUN pecl install protobuf && docker-php-ext-enable protobuf
+
 # Enable Apache mod_rewrite
 RUN a2enmod rewrite
 

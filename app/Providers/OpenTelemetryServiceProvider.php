@@ -3,21 +3,18 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use OpenTelemetry\SDK\Trace\TracerProviderFactory;
 
 class OpenTelemetryServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // SDK auto-configures from OTEL_* environment variables
+        // OpenTelemetry initialization moved to bootstrap/otel.php
+        // which loads before Laravel boots, enabling proper hook registration
+        // for nested spans (database queries, cache operations, etc.)
     }
 
     public function boot(): void
     {
-        if (env('OTEL_TRACES_EXPORTER', 'none') !== 'none') {
-            $factory = new TracerProviderFactory();
-            $tracerProvider = $factory->create();
-            \OpenTelemetry\API\Globals::registerInitialTracerProvider($tracerProvider);
-        }
+        // No-op: All telemetry setup happens in bootstrap/otel.php
     }
 }
