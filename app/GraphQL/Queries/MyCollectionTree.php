@@ -7,6 +7,7 @@ use App\Models\UserItem;
 use App\Models\Wishlist;
 use App\Services\DatabaseOfThingsService;
 use App\Services\UserCollectionService;
+use Illuminate\Support\Facades\Log;
 
 class MyCollectionTree
 {
@@ -58,18 +59,27 @@ class MyCollectionTree
         $allDbotItems = [];
 
         if ($isLinkedCollection) {
-            // Fetch all items by passing a very large limit (no pagination limit)
-            $dbotResponse = $this->databaseOfThings->getCollectionItems(
-                $currentCollection->linked_dbot_collection_id,
-                PHP_INT_MAX  // Fetch all items, no limit
-            );
+            try {
+                // Fetch all items by passing a very large limit (no pagination limit)
+                $dbotResponse = $this->databaseOfThings->getCollectionItems(
+                    $currentCollection->linked_dbot_collection_id,
+                    PHP_INT_MAX  // Fetch all items, no limit
+                );
 
-            // Build ordering map and collect all DBoT items
-            foreach ($dbotResponse['items'] as $index => $item) {
-                $entity = $item['entity'];
-                $entityId = $entity['id'];
-                $dbotOrder[$entityId] = $item['order'] ?? $index;
-                $allDbotItems[$entityId] = $entity;
+                // Build ordering map and collect all DBoT items
+                foreach ($dbotResponse['items'] as $index => $item) {
+                    $entity = $item['entity'];
+                    $entityId = $entity['id'];
+                    $dbotOrder[$entityId] = $item['order'] ?? $index;
+                    $allDbotItems[$entityId] = $entity;
+                }
+            } catch (\Exception $e) {
+                Log::error('MyCollectionTree: Failed to fetch linked collection items from DBoT', [
+                    'collection_id' => $currentCollection->id,
+                    'linked_dbot_collection_id' => $currentCollection->linked_dbot_collection_id,
+                    'error' => $e->getMessage(),
+                ]);
+                throw $e;
             }
         }
 
@@ -95,8 +105,17 @@ class MyCollectionTree
             // Use entities from DBoT response
             $entities = $allDbotItems;
         } elseif (!empty($entityIds)) {
-            // Fetch from DBoT service
-            $entities = $this->databaseOfThings->getEntitiesByIds($entityIds);
+            try {
+                // Fetch from DBoT service
+                $entities = $this->databaseOfThings->getEntitiesByIds($entityIds);
+            } catch (\Exception $e) {
+                Log::error('MyCollectionTree: Failed to fetch entities from DBoT', [
+                    'parent_id' => $parentId,
+                    'entity_count' => count($entityIds),
+                    'error' => $e->getMessage(),
+                ]);
+                throw $e;
+            }
         }
 
         // Create lookup maps for owned and wishlisted items

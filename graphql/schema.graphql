@@ -9,6 +9,23 @@ scalar JSON
 "Can be used as an argument to upload files using https://github.com/jaydenseric/graphql-multipart-request-spec"
 scalar Upload @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Upload")
 
+# ===== ENUMS =====
+
+enum EntityType {
+    item
+    collection
+}
+
+enum CategoryType {
+    trading_card_games
+    figures
+    comics
+    video_games
+    buildables
+}
+
+# ===== END ENUMS =====
+
 # ===== DATABASE OF THINGS TYPES =====
 
 # Image stored in the application (user-uploaded or collection images)
@@ -16,6 +33,13 @@ type Image {
     id: ID!
     original: String!
     thumbnail: String!
+}
+
+# Image from Database of Things (entity/variant/component images)
+type EntityImage {
+    id: ID!
+    image_url: String!
+    thumbnail_url: String
 }
 
 # Variant from Database of Things (variant of a base entity)
@@ -27,23 +51,40 @@ type Variant {
     thumbnail_url: String
 }
 
-# Entity from Database of Things (canonical collectibles data)
-type Entity {
+# Component from Database of Things (part of an entity)
+type Component {
     id: ID!
-    type: String!
     name: String!
-    year: Int
-    country: String
+    quantity: Int
+    order: Int
     attributes: JSON
     image_url: String
     thumbnail_url: String
-    representative_image_urls: [String!] @field(resolver: "App\\GraphQL\\Types\\Entity@representativeImageUrls")  # Computed field: up to 5 random images from descendants (empty if collection has own image)
+    additional_images: [EntityImage!]
+}
+
+# Entity from Database of Things (canonical collectibles data)
+type Entity {
+    id: ID!
+    type: EntityType!
+    name: String!
+    category: CategoryType
+    year: Int
+    country: String
+    language: String
+    attributes: JSON
+    image_url: String
+    thumbnail_url: String
+    additional_images: [EntityImage!]
+    representative_image_urls: [String!] @field(resolver: "App\\GraphQL\\Types\\Entity@representativeImageUrls")
     external_ids: JSON
-    entity_variants: [Variant!]  # Array of variants for this entity
+    source_url: String
+    entity_variants: [Variant!]
+    entity_components: [Component!]
     created_at: DateTime
     updated_at: DateTime
-    similarity: Float  # Similarity score for semantic search results
-    parents: [Entity!]  # Parent collections (only populated in hierarchy queries)
+    similarity: Float
+    parents: [Entity!]
 }
 
 # Image search result with parent entity information
