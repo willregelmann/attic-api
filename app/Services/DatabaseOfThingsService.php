@@ -249,7 +249,6 @@ class DatabaseOfThingsService
                             year
                             country
                             external_ids
-                            image_url
                             images {
                                 image_url
                                 thumbnail_url
@@ -393,7 +392,6 @@ class DatabaseOfThingsService
                             year
                             country
                             external_ids
-                            image_url
                             images {
                                 image_url
                                 thumbnail_url
@@ -451,7 +449,6 @@ class DatabaseOfThingsService
                             year
                             country
                             external_ids
-                            image_url
                             images {
                                 image_url
                                 thumbnail_url
@@ -501,11 +498,13 @@ class DatabaseOfThingsService
                             id
                             name
                             type
+                            category
                             attributes
                             year
                             country
+                            language
                             external_ids
-                            image_url
+                            source_url
                             images {
                                 image_url
                                 thumbnail_url
@@ -516,6 +515,32 @@ class DatabaseOfThingsService
                                         id
                                         name
                                         attributes
+                                        images {
+                                            image_url
+                                            thumbnail_url
+                                        }
+                                    }
+                                }
+                            }
+                            entity_components {
+                                edges {
+                                    node {
+                                        id
+                                        name
+                                        quantity
+                                        order
+                                        attributes
+                                        images {
+                                            image_url
+                                            thumbnail_url
+                                        }
+                                    }
+                                }
+                            }
+                            entity_additional_images {
+                                edges {
+                                    node {
+                                        id
                                         image_url
                                         thumbnail_url
                                     }
@@ -555,11 +580,13 @@ class DatabaseOfThingsService
                             id
                             name
                             type
+                            category
                             attributes
                             year
                             country
+                            language
                             external_ids
-                            image_url
+                            source_url
                             images {
                                 image_url
                                 thumbnail_url
@@ -570,6 +597,32 @@ class DatabaseOfThingsService
                                         id
                                         name
                                         attributes
+                                        images {
+                                            image_url
+                                            thumbnail_url
+                                        }
+                                    }
+                                }
+                            }
+                            entity_components {
+                                edges {
+                                    node {
+                                        id
+                                        name
+                                        quantity
+                                        order
+                                        attributes
+                                        images {
+                                            image_url
+                                            thumbnail_url
+                                        }
+                                    }
+                                }
+                            }
+                            entity_additional_images {
+                                edges {
+                                    node {
+                                        id
                                         image_url
                                         thumbnail_url
                                     }
