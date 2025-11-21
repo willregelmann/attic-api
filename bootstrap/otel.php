@@ -20,6 +20,16 @@ if (getenv('OTEL_TRACES_EXPORTER') === 'otlp') {
     $requestFactory = \Http\Discovery\Psr17FactoryDiscovery::findRequestFactory();
     $streamFactory = \Http\Discovery\Psr17FactoryDiscovery::findStreamFactory();
 
+    // Parse headers from environment variable (format: key1=value1,key2=value2)
+    $headers = [];
+    $headersEnv = getenv('OTEL_EXPORTER_OTLP_HEADERS');
+    if ($headersEnv) {
+        foreach (explode(',', $headersEnv) as $header) {
+            [$key, $value] = explode('=', $header, 2);
+            $headers[trim($key)] = trim($value);
+        }
+    }
+
     // Create transport with explicit client
     $transport = new \OpenTelemetry\SDK\Common\Export\Http\PsrTransport(
         $httpClient,
@@ -27,7 +37,7 @@ if (getenv('OTEL_TRACES_EXPORTER') === 'otlp') {
         $streamFactory,
         getenv('OTEL_EXPORTER_OTLP_ENDPOINT') . '/v1/traces',
         'application/x-protobuf',
-        [],      // headers
+        $headers,
         [],      // compression
         100,     // retry delay
         3        // max retries
