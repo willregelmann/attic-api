@@ -431,7 +431,7 @@ class DatabaseOfThingsService
             }
 
             $result = $this->query($query, $variables);
-            $relationships = $result['data']['relationshipsCollection'] ?? ['edges' => [], 'pageInfo' => ['hasNextPage' => false, 'endCursor' => null]];
+            $relationships = $result['data']['relationshipsCollection'] ?? ['edges' => [], 'pageInfo' => ['hasNextPage' => false, 'hasPreviousPage' => false, 'endCursor' => null]];
 
             // Collect relationships from this page
             $allRelationships = array_merge($allRelationships, $relationships['edges']);
@@ -469,6 +469,7 @@ class DatabaseOfThingsService
             'items' => $allItems,
             'pageInfo' => [
                 'hasNextPage' => false, // We fetched everything
+                'hasPreviousPage' => false,
                 'endCursor' => null,
             ],
         ];
@@ -1047,20 +1048,20 @@ class DatabaseOfThingsService
                     $relationships = $body['data']['relationshipsCollection'];
                     $relationshipData[$collectionId] = [
                         'edges' => $relationships['edges'] ?? [],
-                        'pageInfo' => $relationships['pageInfo'] ?? ['hasNextPage' => false, 'endCursor' => null],
+                        'pageInfo' => $relationships['pageInfo'] ?? ['hasNextPage' => false, 'hasPreviousPage' => false, 'endCursor' => null],
                     ];
                 } else {
                     Log::warning("Failed to fetch collection items for {$collectionId}", [
                         'response' => $body,
                     ]);
-                    $relationshipData[$collectionId] = ['edges' => [], 'pageInfo' => ['hasNextPage' => false, 'endCursor' => null]];
+                    $relationshipData[$collectionId] = ['edges' => [], 'pageInfo' => ['hasNextPage' => false, 'hasPreviousPage' => false, 'endCursor' => null]];
                 }
             },
             'rejected' => function ($reason, $collectionId) use (&$relationshipData) {
                 Log::error("Failed to fetch collection items for {$collectionId}", [
                     'reason' => (string) $reason,
                 ]);
-                $relationshipData[$collectionId] = ['edges' => [], 'pageInfo' => ['hasNextPage' => false, 'endCursor' => null]];
+                $relationshipData[$collectionId] = ['edges' => [], 'pageInfo' => ['hasNextPage' => false, 'hasPreviousPage' => false, 'endCursor' => null]];
             },
         ]);
 
