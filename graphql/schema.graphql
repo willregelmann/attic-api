@@ -377,7 +377,7 @@ type Query {
         first: Int = 50
         after: String
         category: CategoryType
-    ): EntityConnection! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\CollectionsList")
+    ): EntityConnection! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\CollectionsList") @trace
 
     # Search entities in Database of Things
     databaseOfThingsSearch(
@@ -386,7 +386,7 @@ type Query {
         category: CategoryType
         first: Int = 50
         after: String
-    ): EntityConnection! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\SearchEntities")
+    ): EntityConnection! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\SearchEntities") @trace
 
     # Semantic search using vector embeddings
     databaseOfThingsSemanticSearch(
@@ -395,14 +395,14 @@ type Query {
         category: CategoryType
         first: Int = 20
         after: String
-    ): EntityConnection! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\SemanticSearch")
+    ): EntityConnection! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\SemanticSearch") @trace
 
     # Get items in a Database of Things collection
     databaseOfThingsCollectionItems(
         collection_id: ID!
         first: Int = 100
         after: String
-    ): EntityConnection! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\CollectionItems")
+    ): EntityConnection! @field(resolver: "App\\GraphQL\\Queries\\DatabaseOfThings\\CollectionItems") @trace
 
     # Get a single entity from Database of Things
     databaseOfThingsEntity(
@@ -433,13 +433,13 @@ type Query {
 
     # User's owned items (returns UserItem records with entity_id references)
     # Optional entity_id filter for duplicate detection
-    myItems(entity_id: ID): [UserItem!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyItems")
+    myItems(entity_id: ID): [UserItem!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyItems") @trace
 
     # Single user item with entity data (for item detail view)
-    myItem(user_item_id: ID!): UserItemWithEntity @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyItem")
+    myItem(user_item_id: ID!): UserItemWithEntity @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyItem") @trace
 
     # User's collection as entities (fetches entity data for owned items with user metadata)
-    myCollection: [UserItemWithEntity!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyCollection")
+    myCollection: [UserItemWithEntity!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyCollection") @trace
 
     # User's API tokens
     myApiTokens: [ApiToken!]! @guard(with: ["sanctum"]) @field(resolver: "App\\GraphQL\\Queries\\MyApiTokens")
