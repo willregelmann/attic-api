@@ -97,7 +97,9 @@ class ApiToken extends Model
     {
         $hashedToken = hash('sha256', $plainTextToken);
 
-        return static::where('token', $hashedToken)->first();
+        return static::where('token', $hashedToken)
+            ->with('user') // Eager load user to avoid N+1 query
+            ->first();
     }
 
     /**
