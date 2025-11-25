@@ -33,7 +33,10 @@ return [
 
             // Always set the `Accept: application/json` header.
             Nuwave\Lighthouse\Http\Middleware\AcceptJson::class,
-            
+
+            // Add tracing context (trace ID in response, operation name on span)
+            \App\Http\Middleware\GraphQLTracing::class,
+
             // Authenticate with API tokens
             \App\Http\Middleware\AuthenticateWithApiToken::class,
 
