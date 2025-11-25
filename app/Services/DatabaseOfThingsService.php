@@ -418,7 +418,7 @@ class DatabaseOfThingsService
         // Fetch all pages automatically
         $allRelationships = [];
         $currentCursor = $after;
-        $pageSize = 100; // Use a reasonable page size
+        $pageSize = 30; // Supabase GraphQL default max is 30 per page
 
         do {
             $variables = [
@@ -1147,7 +1147,7 @@ class DatabaseOfThingsService
         // Paginate through all items
         $allItemIds = [];
         $after = null;
-        $pageSize = 1000;
+        $pageSize = 30; // Supabase GraphQL default max is 30 per page
         $pageCount = 0;
 
         do {
@@ -1205,7 +1205,7 @@ class DatabaseOfThingsService
         // Paginate through all parent relationships
         $allRelationships = [];
         $after = null;
-        $pageSize = 1000;
+        $pageSize = 30; // Supabase GraphQL default max is 30 per page
 
         do {
             $variables = [
