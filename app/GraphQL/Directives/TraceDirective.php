@@ -2,7 +2,6 @@
 
 namespace App\GraphQL\Directives;
 
-use Closure;
 use GraphQL\Type\Definition\ResolveInfo;
 use Nuwave\Lighthouse\Schema\Directives\BaseDirective;
 use Nuwave\Lighthouse\Schema\Values\FieldValue;
@@ -36,11 +35,9 @@ directive @trace on FIELD_DEFINITION
 GRAPHQL;
     }
 
-    public function handleField(FieldValue $fieldValue, Closure $next): FieldValue
+    public function handleField(FieldValue $fieldValue): void
     {
-        $previousResolver = $fieldValue->getResolver();
-
-        $fieldValue->setResolver(function ($root, array $args, GraphQLContext $context, ResolveInfo $resolveInfo) use ($previousResolver) {
+        $fieldValue->wrapResolver(fn (callable $previousResolver) => function ($root, array $args, GraphQLContext $context, ResolveInfo $resolveInfo) use ($previousResolver) {
             $tracer = Globals::tracerProvider()->getTracer('graphql-field');
 
             // Build span name from type and field
@@ -90,7 +87,5 @@ GRAPHQL;
                 $span->end();
             }
         });
-
-        return $next($fieldValue);
     }
 }
