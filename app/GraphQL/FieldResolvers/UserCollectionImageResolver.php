@@ -4,26 +4,35 @@ namespace App\GraphQL\FieldResolvers;
 
 use App\Models\UserCollection;
 use App\Services\DatabaseOfThingsService;
+use App\Services\DbotDataCache;
 
 class UserCollectionImageResolver
 {
     protected DatabaseOfThingsService $databaseOfThings;
 
-    public function __construct(DatabaseOfThingsService $databaseOfThings)
+    protected DbotDataCache $dbotCache;
+
+    public function __construct(DatabaseOfThingsService $databaseOfThings, DbotDataCache $dbotCache)
     {
         $this->databaseOfThings = $databaseOfThings;
+        $this->dbotCache = $dbotCache;
     }
 
     public function __invoke(UserCollection $collection)
     {
         // If no linked DBoT collection, return null
-        if (!$collection->linked_dbot_collection_id) {
+        if (! $collection->linked_dbot_collection_id) {
             return null;
         }
 
         try {
-            // Fetch DBoT collection entity
-            $dbotCollection = $this->databaseOfThings->getEntity($collection->linked_dbot_collection_id);
+            // Try to use cached data first (from MyCollectionTree pre-fetch)
+            $dbotCollection = $this->dbotCache->getEntity($collection->linked_dbot_collection_id);
+
+            // If not in cache, fetch from DBoT (fallback for non-tree queries)
+            if ($dbotCollection === null) {
+                $dbotCollection = $this->databaseOfThings->getEntity($collection->linked_dbot_collection_id);
+            }
 
             // Return thumbnail_url (preferred for cards), fallback to image_url
             return $dbotCollection['thumbnail_url'] ?? $dbotCollection['image_url'] ?? null;

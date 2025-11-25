@@ -15,12 +15,9 @@ class UserCollectionService
     {
         $this->dbotService = $dbotService;
     }
+
     /**
      * Get collection tree for user
-     *
-     * @param string $userId
-     * @param string|null $parentId
-     * @return Collection
      */
     public function getCollectionTree(string $userId, ?string $parentId = null): Collection
     {
@@ -33,9 +30,6 @@ class UserCollectionService
     /**
      * Validate that a collection can be moved to a new parent
      *
-     * @param string $collectionId
-     * @param string|null $newParentId
-     * @return void
      * @throws \InvalidArgumentException
      */
     public function validateMove(string $collectionId, ?string $newParentId): void
@@ -59,9 +53,6 @@ class UserCollectionService
 
     /**
      * Get all descendant collection IDs recursively
-     *
-     * @param string $collectionId
-     * @return array
      */
     protected function getDescendantIds(string $collectionId): array
     {
@@ -80,7 +71,6 @@ class UserCollectionService
     /**
      * Calculate simple progress for a collection (direct children only)
      *
-     * @param string $collectionId
      * @return array{owned_count: int, wishlist_count: int, total_count: int, percentage: float}
      */
     public function calculateSimpleProgress(string $collectionId): array
@@ -109,17 +99,17 @@ class UserCollectionService
     /**
      * Calculate progress for a collection (includes all descendants recursively)
      *
-     * @param string $collectionId
+     * @param  DbotDataCache|null  $dbotCache  Optional cache for pre-fetched DBoT data
      * @return array{owned_count: int, wishlist_count: int, total_count: int, percentage: float}
      */
-    public function calculateProgress(string $collectionId): array
+    public function calculateProgress(string $collectionId, ?DbotDataCache $dbotCache = null): array
     {
         $collection = UserCollection::find($collectionId);
         $ownedCount = $this->countOwnedItemsRecursive($collectionId);
         $wishlistCount = $this->countWishlistedItemsRecursive($collectionId);
 
-        // Calculate total count
-        $totalCount = $this->calculateTotalCountRecursive($collectionId);
+        // Calculate total count (using cache if available)
+        $totalCount = $this->calculateTotalCountRecursive($collectionId, $dbotCache);
 
         $percentage = $totalCount > 0
             ? round(($ownedCount / $totalCount) * 100, 2)
@@ -136,21 +126,28 @@ class UserCollectionService
     /**
      * Calculate total count recursively including all child collections
      *
-     * @param string $collectionId
-     * @return int
+     * @param  DbotDataCache|null  $dbotCache  Optional cache for pre-fetched DBoT data
      */
-    protected function calculateTotalCountRecursive(string $collectionId): int
+    protected function calculateTotalCountRecursive(string $collectionId, ?DbotDataCache $dbotCache = null): int
     {
         $collection = UserCollection::find($collectionId);
         $totalCount = 0;
 
         // If this collection is linked to DBoT, add its DBoT size
         if ($collection && $collection->linked_dbot_collection_id) {
-            $dbotResponse = $this->dbotService->getCollectionItems(
-                $collection->linked_dbot_collection_id,
-                PHP_INT_MAX  // Fetch all items, no limit
-            );
-            $totalCount += count($dbotResponse['items'] ?? []);
+            // Try to use cached item count first (from MyCollectionTree pre-fetch)
+            $cachedCount = $dbotCache?->getCollectionItemCount($collection->linked_dbot_collection_id);
+
+            if ($cachedCount !== null) {
+                $totalCount += $cachedCount;
+            } else {
+                // Fallback: fetch from DBoT (for non-tree queries)
+                $dbotResponse = $this->dbotService->getCollectionItems(
+                    $collection->linked_dbot_collection_id,
+                    PHP_INT_MAX  // Fetch all items, no limit
+                );
+                $totalCount += count($dbotResponse['items'] ?? []);
+            }
         } else {
             // For non-linked collections at this level, count unique entity_ids
             $ownedCount = UserItem::where('parent_collection_id', $collectionId)
@@ -165,7 +162,7 @@ class UserCollectionService
         // Recursively add totals from child collections
         $subcollections = UserCollection::where('parent_collection_id', $collectionId)->get();
         foreach ($subcollections as $subcollection) {
-            $totalCount += $this->calculateTotalCountRecursive($subcollection->id);
+            $totalCount += $this->calculateTotalCountRecursive($subcollection->id, $dbotCache);
         }
 
         return $totalCount;
@@ -173,9 +170,6 @@ class UserCollectionService
 
     /**
      * Count owned items recursively including all descendants
-     *
-     * @param string $collectionId
-     * @return int
      */
     protected function countOwnedItemsRecursive(string $collectionId): int
     {
@@ -195,9 +189,6 @@ class UserCollectionService
 
     /**
      * Count wishlisted items recursively including all descendants
-     *
-     * @param string $collectionId
-     * @return int
      */
     protected function countWishlistedItemsRecursive(string $collectionId): int
     {
@@ -219,9 +210,6 @@ class UserCollectionService
      * Get items from a DBoT collection that should be added to wishlist.
      * Filters out items already owned or wishlisted in the target collection.
      *
-     * @param string $userId
-     * @param string $dbotCollectionId
-     * @param string|null $targetCollectionId
      * @return array ['items_to_add' => array, 'already_owned_count' => int, 'already_wishlisted_count' => int]
      */
     public function getItemsToAddToWishlist(
@@ -234,7 +222,7 @@ class UserCollectionService
         $dbotItems = $dbotResult['items'] ?? [];
 
         // Extract entity IDs from DBoT items
-        $dbotEntityIds = array_map(fn($item) => $item['entity']['id'], $dbotItems);
+        $dbotEntityIds = array_map(fn ($item) => $item['entity']['id'], $dbotItems);
 
         // If no target collection specified, return all items
         if ($targetCollectionId === null) {
@@ -263,7 +251,7 @@ class UserCollectionService
         // Use array_flip for O(1) lookup instead of O(n) with in_array
         $excludedIds = array_flip(array_merge($existingOwnedIds, $existingWishlistedIds));
         $filteredItems = array_filter($dbotItems, function ($item) use ($excludedIds) {
-            return !isset($excludedIds[$item['entity']['id']]);
+            return ! isset($excludedIds[$item['entity']['id']]);
         });
 
         // 5. Return result with counts
@@ -277,11 +265,6 @@ class UserCollectionService
     /**
      * Create a tracked collection (linked to DBoT collection).
      *
-     * @param string $userId
-     * @param string $dbotCollectionId
-     * @param string $name
-     * @param string|null $parentCollectionId
-     * @return UserCollection
      * @throws \Exception If DBoT collection not found
      */
     public function createTrackedCollection(
@@ -289,8 +272,7 @@ class UserCollectionService
         string $dbotCollectionId,
         string $name,
         ?string $parentCollectionId = null
-    ): UserCollection
-    {
+    ): UserCollection {
         // Validate DBoT collection exists
         $dbotCollection = $this->dbotService->getCollection($dbotCollectionId);
 
@@ -311,17 +293,14 @@ class UserCollectionService
     /**
      * Bulk add items to wishlist.
      *
-     * @param string $userId
-     * @param array $entityIds Array of entity IDs to add
-     * @param string|null $parentCollectionId
+     * @param  array  $entityIds  Array of entity IDs to add
      * @return array ['items_added' => int, 'items_skipped' => int]
      */
     public function bulkAddToWishlist(
         string $userId,
         array $entityIds,
         ?string $parentCollectionId = null
-    ): array
-    {
+    ): array {
         // Handle empty array case
         if (empty($entityIds)) {
             return [
@@ -342,7 +321,7 @@ class UserCollectionService
             $itemsToAdd = array_diff($entityIds, $existingWishlists);
 
             // 3. Bulk insert new wishlist records
-            if (!empty($itemsToAdd)) {
+            if (! empty($itemsToAdd)) {
                 $wishlistRecords = [];
                 foreach ($itemsToAdd as $entityId) {
                     $wishlistRecords[] = [

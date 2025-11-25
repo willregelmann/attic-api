@@ -2,11 +2,12 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
-use Laravel\Sanctum\Sanctum;
 use App\Models\PersonalAccessToken;
 use App\Models\UserItem;
 use App\Observers\UserItemObserver;
+use App\Services\DbotDataCache;
+use Illuminate\Support\ServiceProvider;
+use Laravel\Sanctum\Sanctum;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -15,7 +16,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Register DbotDataCache as a singleton for request-scoped caching
+        // This allows pre-fetched DBoT data to be shared across field resolvers
+        $this->app->singleton(DbotDataCache::class, function () {
+            return new DbotDataCache;
+        });
     }
 
     /**

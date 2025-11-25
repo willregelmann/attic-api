@@ -6,20 +6,26 @@ use App\Models\UserCollection;
 use App\Models\UserItem;
 use App\Models\Wishlist;
 use App\Services\DatabaseOfThingsService;
+use App\Services\DbotDataCache;
 use App\Services\UserCollectionService;
 use Illuminate\Support\Facades\Log;
 
 class MyCollectionTree
 {
     protected UserCollectionService $service;
+
     protected DatabaseOfThingsService $databaseOfThings;
+
+    protected DbotDataCache $dbotCache;
 
     public function __construct(
         UserCollectionService $service,
-        DatabaseOfThingsService $databaseOfThings
+        DatabaseOfThingsService $databaseOfThings,
+        DbotDataCache $dbotCache
     ) {
         $this->service = $service;
         $this->databaseOfThings = $databaseOfThings;
+        $this->dbotCache = $dbotCache;
     }
 
     public function __invoke($root, array $args)
@@ -30,6 +36,11 @@ class MyCollectionTree
         // Handle string "null" being passed from frontend
         if ($parentId === 'null' || $parentId === '') {
             $parentId = null;
+        }
+
+        // Pre-fetch all DBoT data for field resolvers (only once per request)
+        if (! $this->dbotCache->isPrefetched()) {
+            $this->prefetchDbotData($user->id);
         }
 
         // Get collections at this level
@@ -104,7 +115,7 @@ class MyCollectionTree
         if ($isLinkedCollection) {
             // Use entities from DBoT response
             $entities = $allDbotItems;
-        } elseif (!empty($entityIds)) {
+        } elseif (! empty($entityIds)) {
             try {
                 // Fetch from DBoT service
                 $entities = $this->databaseOfThings->getEntitiesByIds($entityIds);
@@ -322,16 +333,18 @@ class MyCollectionTree
         }
 
         // Sort items and wishlists by DBoT order if this is a linked collection
-        if (!empty($dbotOrder)) {
+        if (! empty($dbotOrder)) {
             usort($transformedItems, function ($a, $b) use ($dbotOrder) {
                 $orderA = $dbotOrder[$a['id']] ?? PHP_INT_MAX;
                 $orderB = $dbotOrder[$b['id']] ?? PHP_INT_MAX;
+
                 return $orderA <=> $orderB;
             });
 
             usort($transformedWishlists, function ($a, $b) use ($dbotOrder) {
                 $orderA = $dbotOrder[$a['id']] ?? PHP_INT_MAX;
                 $orderB = $dbotOrder[$b['id']] ?? PHP_INT_MAX;
+
                 return $orderA <=> $orderB;
             });
         }
@@ -342,5 +355,51 @@ class MyCollectionTree
             'wishlists' => $transformedWishlists,
             'current_collection' => $currentCollection,
         ];
+    }
+
+    /**
+     * Pre-fetch all DBoT data needed for field resolvers
+     *
+     * This method fetches all linked DBoT collection data in parallel,
+     * then stores it in the request-scoped cache so field resolvers
+     * (progress, representative_images, image_url) can use cached data
+     * instead of making individual DBoT calls.
+     *
+     * Performance: Reduces ~60 sequential DBoT calls to ~6 parallel batches
+     */
+    protected function prefetchDbotData(string $userId): void
+    {
+        // Get ALL user collections (not just current level) to pre-fetch all DBoT data
+        $allCollections = UserCollection::where('user_id', $userId)
+            ->whereNotNull('linked_dbot_collection_id')
+            ->pluck('linked_dbot_collection_id')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        if (empty($allCollections)) {
+            return;
+        }
+
+        try {
+            // Pre-fetch all DBoT data in parallel
+            $prefetchedData = $this->databaseOfThings->prefetchCollectionTreeData($allCollections);
+
+            // Store in cache for field resolvers to use
+            $this->dbotCache->setEntities($prefetchedData['entities']);
+            $this->dbotCache->setCollectionItemCounts($prefetchedData['collectionItemCounts']);
+
+            Log::debug('MyCollectionTree: Pre-fetched DBoT data', [
+                'linked_collections' => count($allCollections),
+                'entities_cached' => count($prefetchedData['entities']),
+                'counts_cached' => count($prefetchedData['collectionItemCounts']),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('MyCollectionTree: Failed to pre-fetch DBoT data', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+            // Don't throw - field resolvers will fall back to individual fetches
+        }
     }
 }

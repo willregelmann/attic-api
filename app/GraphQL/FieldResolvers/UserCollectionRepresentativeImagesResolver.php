@@ -6,27 +6,31 @@ use App\Models\UserCollection;
 use App\Models\UserItem;
 use App\Models\Wishlist;
 use App\Services\DatabaseOfThingsService;
+use App\Services\DbotDataCache;
 
 class UserCollectionRepresentativeImagesResolver
 {
     protected DatabaseOfThingsService $databaseOfThings;
 
-    public function __construct(DatabaseOfThingsService $databaseOfThings)
+    protected DbotDataCache $dbotCache;
+
+    public function __construct(DatabaseOfThingsService $databaseOfThings, DbotDataCache $dbotCache)
     {
         $this->databaseOfThings = $databaseOfThings;
+        $this->dbotCache = $dbotCache;
     }
 
     public function __invoke(UserCollection $collection)
     {
         // Priority 1: User uploaded image for the collection itself
         $collectionImages = $collection->images;
-        if (is_array($collectionImages) && !empty($collectionImages)) {
+        if (is_array($collectionImages) && ! empty($collectionImages)) {
             // Use first user-uploaded image as primary
             $firstImage = $collectionImages[0];
             // Image path needs /storage/ prefix for frontend display
             $imagePath = $firstImage['thumbnail'] ?? $firstImage['original'] ?? null;
             if ($imagePath) {
-                return ['/storage/' . $imagePath];
+                return ['/storage/'.$imagePath];
             }
         }
 
@@ -38,7 +42,14 @@ class UserCollectionRepresentativeImagesResolver
         // Priority 2: DBoT image for linked collection
         if ($collection->linked_dbot_collection_id) {
             try {
-                $dbotCollection = $this->databaseOfThings->getEntity($collection->linked_dbot_collection_id);
+                // Try to use cached data first (from MyCollectionTree pre-fetch)
+                $dbotCollection = $this->dbotCache->getEntity($collection->linked_dbot_collection_id);
+
+                // If not in cache, fetch from DBoT (fallback for non-tree queries)
+                if ($dbotCollection === null) {
+                    $dbotCollection = $this->databaseOfThings->getEntity($collection->linked_dbot_collection_id);
+                }
+
                 $image = $dbotCollection['thumbnail_url'] ?? $dbotCollection['image_url'] ?? null;
                 if ($image) {
                     return [$image];
@@ -72,36 +83,42 @@ class UserCollectionRepresentativeImagesResolver
         foreach ($items as $item) {
             // Check for user-uploaded image first
             $userImages = $item->images;
-            if (is_array($userImages) && !empty($userImages)) {
+            if (is_array($userImages) && ! empty($userImages)) {
                 $firstImage = $userImages[0];
                 $thumbnailPath = $firstImage['thumbnail'] ?? $firstImage['original'] ?? null;
                 if ($thumbnailPath) {
-                    $images[] = '/storage/' . $thumbnailPath;
+                    $images[] = '/storage/'.$thumbnailPath;
                 }
             } else {
                 // No user image, will fetch DBoT image later
                 $entityIds[] = $item->entity_id;
             }
 
-            if (count($images) >= 4) break;
+            if (count($images) >= 4) {
+                break;
+            }
         }
 
         // Process wishlist items if we need more images
         if (count($images) < 4) {
             foreach ($wishlists as $wishlist) {
                 $entityIds[] = $wishlist->entity_id;
-                if (count($images) + count($entityIds) >= 4) break;
+                if (count($images) + count($entityIds) >= 4) {
+                    break;
+                }
             }
         }
 
         // Fetch DBoT images for items that don't have user images
-        if (!empty($entityIds) && count($images) < 4) {
+        if (! empty($entityIds) && count($images) < 4) {
             try {
                 $entities = $this->databaseOfThings->getEntitiesByIds($entityIds);
 
                 // Extract DBoT image URLs
                 foreach ($entityIds as $entityId) {
-                    if (count($images) >= 4) break;
+                    if (count($images) >= 4) {
+                        break;
+                    }
 
                     $entity = $entities[$entityId] ?? null;
                     if ($entity) {
@@ -130,15 +147,18 @@ class UserCollectionRepresentativeImagesResolver
                 ->get();
 
             foreach ($subcollections as $subcollection) {
-                if (count($images) >= 4) break;
+                if (count($images) >= 4) {
+                    break;
+                }
 
                 // Check subcollection's user-uploaded image first
                 $subImages = $subcollection->images;
-                if (is_array($subImages) && !empty($subImages)) {
+                if (is_array($subImages) && ! empty($subImages)) {
                     $firstImage = $subImages[0];
                     $thumbnailPath = $firstImage['thumbnail'] ?? $firstImage['original'] ?? null;
                     if ($thumbnailPath) {
-                        $images[] = '/storage/' . $thumbnailPath;
+                        $images[] = '/storage/'.$thumbnailPath;
+
                         continue;
                     }
                 }
@@ -146,13 +166,21 @@ class UserCollectionRepresentativeImagesResolver
                 // Fallback to subcollection's custom_image (deprecated)
                 if ($subcollection->custom_image) {
                     $images[] = $subcollection->custom_image;
+
                     continue;
                 }
 
                 // If subcollection is linked, get its DBoT collection image
                 if ($subcollection->linked_dbot_collection_id) {
                     try {
-                        $dbotCollection = $this->databaseOfThings->getEntity($subcollection->linked_dbot_collection_id);
+                        // Try to use cached data first
+                        $dbotCollection = $this->dbotCache->getEntity($subcollection->linked_dbot_collection_id);
+
+                        // If not in cache, fetch from DBoT
+                        if ($dbotCollection === null) {
+                            $dbotCollection = $this->databaseOfThings->getEntity($subcollection->linked_dbot_collection_id);
+                        }
+
                         $image = $dbotCollection['thumbnail_url'] ?? $dbotCollection['image_url'] ?? null;
                         if ($image) {
                             $images[] = $image;
