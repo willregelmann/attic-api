@@ -420,9 +420,7 @@ class DatabaseOfThingsService
         $currentCursor = $after;
         $pageSize = 30; // Supabase GraphQL default max is 30 per page
 
-        $pageNum = 0;
         do {
-            $pageNum++;
             $variables = [
                 'collectionId' => $collectionId,
                 'first' => $pageSize,
@@ -440,15 +438,6 @@ class DatabaseOfThingsService
 
             $hasNextPage = $relationships['pageInfo']['hasNextPage'] ?? false;
             $currentCursor = $relationships['pageInfo']['endCursor'] ?? null;
-
-            \Log::info("DBoT pagination", [
-                'page' => $pageNum,
-                'itemsThisPage' => count($relationships['edges']),
-                'totalSoFar' => count($allRelationships),
-                'hasNextPage' => $hasNextPage,
-                'cursor' => $currentCursor,
-                'requestedFirst' => $first,
-            ]);
 
             // Continue fetching until we have enough items or no more pages
         } while ($hasNextPage && count($allRelationships) < $first);
@@ -729,8 +718,8 @@ class DatabaseOfThingsService
         }
 
         $query = '
-            query($ids: [UUID!]!) {
-                entitiesCollection(filter: {id: {in: $ids}}) {
+            query($ids: [UUID!]!, $first: Int!) {
+                entitiesCollection(filter: {id: {in: $ids}}, first: $first) {
                     edges {
                         node {
                             id
@@ -790,11 +779,21 @@ class DatabaseOfThingsService
             }
         ';
 
-        $result = $this->query($query, ['ids' => $entityIds]);
+        // Supabase GraphQL has a default max of 30 items per page
+        // Batch IDs into groups of 30 to ensure all entities are fetched
+        $batchSize = 30;
         $entities = [];
+        $batches = array_chunk($entityIds, $batchSize);
 
-        foreach ($result['data']['entitiesCollection']['edges'] ?? [] as $edge) {
-            $entities[$edge['node']['id']] = $this->normalizeEntityImages($edge['node']);
+        foreach ($batches as $batchIds) {
+            $result = $this->query($query, [
+                'ids' => $batchIds,
+                'first' => $batchSize,
+            ]);
+
+            foreach ($result['data']['entitiesCollection']['edges'] ?? [] as $edge) {
+                $entities[$edge['node']['id']] = $this->normalizeEntityImages($edge['node']);
+            }
         }
 
         return $entities;
