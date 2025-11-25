@@ -420,7 +420,9 @@ class DatabaseOfThingsService
         $currentCursor = $after;
         $pageSize = 30; // Supabase GraphQL default max is 30 per page
 
+        $pageNum = 0;
         do {
+            $pageNum++;
             $variables = [
                 'collectionId' => $collectionId,
                 'first' => $pageSize,
@@ -438,6 +440,15 @@ class DatabaseOfThingsService
 
             $hasNextPage = $relationships['pageInfo']['hasNextPage'] ?? false;
             $currentCursor = $relationships['pageInfo']['endCursor'] ?? null;
+
+            \Log::info("DBoT pagination", [
+                'page' => $pageNum,
+                'itemsThisPage' => count($relationships['edges']),
+                'totalSoFar' => count($allRelationships),
+                'hasNextPage' => $hasNextPage,
+                'cursor' => $currentCursor,
+                'requestedFirst' => $first,
+            ]);
 
             // Continue fetching until we have enough items or no more pages
         } while ($hasNextPage && count($allRelationships) < $first);
