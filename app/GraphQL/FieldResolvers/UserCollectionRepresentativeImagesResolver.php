@@ -89,8 +89,8 @@ class UserCollectionRepresentativeImagesResolver
                 if ($thumbnailPath) {
                     $images[] = '/storage/'.$thumbnailPath;
                 }
-            } else {
-                // No user image, will fetch DBoT image later
+            } elseif ($item->entity_id) {
+                // No user image and has DBoT entity, will fetch image later
                 $entityIds[] = $item->entity_id;
             }
 
@@ -102,7 +102,9 @@ class UserCollectionRepresentativeImagesResolver
         // Process wishlist items if we need more images
         if (count($images) < 4) {
             foreach ($wishlists as $wishlist) {
-                $entityIds[] = $wishlist->entity_id;
+                if ($wishlist->entity_id) {
+                    $entityIds[] = $wishlist->entity_id;
+                }
                 if (count($images) + count($entityIds) >= 4) {
                     break;
                 }
@@ -112,7 +114,27 @@ class UserCollectionRepresentativeImagesResolver
         // Fetch DBoT images for items that don't have user images
         if (! empty($entityIds) && count($images) < 4) {
             try {
-                $entities = $this->databaseOfThings->getEntitiesByIds($entityIds);
+                // Check cache first, then fetch missing entities
+                $entities = [];
+                $uncachedIds = [];
+
+                foreach ($entityIds as $entityId) {
+                    $cached = $this->dbotCache->getEntity($entityId);
+                    if ($cached !== null) {
+                        $entities[$entityId] = $cached;
+                    } else {
+                        $uncachedIds[] = $entityId;
+                    }
+                }
+
+                // Fetch any uncached entities from DBoT
+                if (! empty($uncachedIds)) {
+                    $fetched = $this->databaseOfThings->getEntitiesByIds($uncachedIds);
+                    $entities = array_merge($entities, $fetched);
+
+                    // Store in cache for future use
+                    $this->dbotCache->setEntities($fetched);
+                }
 
                 // Extract DBoT image URLs
                 foreach ($entityIds as $entityId) {
