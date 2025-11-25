@@ -5,13 +5,14 @@
 
 use OpenTelemetry\SDK\Sdk;
 use OpenTelemetry\SDK\Trace\TracerProvider;
-use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
+use OpenTelemetry\SDK\Trace\SpanProcessor\BatchSpanProcessor;
 use OpenTelemetry\SDK\Resource\ResourceInfoFactory;
 use OpenTelemetry\SDK\Resource\ResourceInfo;
 use OpenTelemetry\SDK\Common\Attribute\Attributes;
 use OpenTelemetry\SemConv\ResourceAttributes;
 use OpenTelemetry\Contrib\Otlp\SpanExporter;
 use OpenTelemetry\Contrib\Instrumentation\Laravel\LaravelInstrumentation;
+use OpenTelemetry\API\Common\Time\Clock;
 
 // Only run if tracing is enabled
 if (getenv('OTEL_TRACES_EXPORTER') === 'otlp') {
@@ -51,9 +52,18 @@ if (getenv('OTEL_TRACES_EXPORTER') === 'otlp') {
         ]))
     );
 
-    // Create tracer provider
+    // Create tracer provider with BatchSpanProcessor
+    // BatchSpanProcessor queues spans and exports asynchronously in batches
+    // This prevents blocking request processing (SimpleSpanProcessor was adding 200-500ms per span)
     $tracerProvider = TracerProvider::builder()
-        ->addSpanProcessor(new SimpleSpanProcessor($exporter))
+        ->addSpanProcessor(new BatchSpanProcessor(
+            $exporter,
+            Clock::getDefault(),
+            2048,    // maxQueueSize
+            5000,    // scheduledDelayMillis (export every 5s)
+            30000,   // exportTimeoutMillis
+            512      // maxExportBatchSize
+        ))
         ->setResource($resource)
         ->build();
 
