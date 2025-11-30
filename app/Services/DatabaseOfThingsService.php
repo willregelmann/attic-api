@@ -114,11 +114,17 @@ class DatabaseOfThingsService
                     if (is_string($firstImage)) {
                         // Array of URL strings
                         $entity['image_url'] = $this->normalizeImageUrl($firstImage);
-                    } elseif (is_array($firstImage) && isset($firstImage['url'])) {
-                        // Array of image objects with url/thumbnail
-                        $entity['image_url'] = $this->normalizeImageUrl($firstImage['url']);
+                    } elseif (is_array($firstImage)) {
+                        // Array of image objects - handle both url/thumbnail and image_url/thumbnail_url keys
+                        if (isset($firstImage['url'])) {
+                            $entity['image_url'] = $this->normalizeImageUrl($firstImage['url']);
+                        } elseif (isset($firstImage['image_url'])) {
+                            $entity['image_url'] = $this->normalizeImageUrl($firstImage['image_url']);
+                        }
                         if (isset($firstImage['thumbnail'])) {
                             $entity['thumbnail_url'] = $this->normalizeImageUrl($firstImage['thumbnail']);
+                        } elseif (isset($firstImage['thumbnail_url'])) {
+                            $entity['thumbnail_url'] = $this->normalizeImageUrl($firstImage['thumbnail_url']);
                         }
                     }
                 }
@@ -1868,36 +1874,64 @@ class DatabaseOfThingsService
 
         $pool->promise()->wait();
 
-        // Fetch remaining pages sequentially (usually not many)
-        // This could be parallelized further, but most collections have <30 items
+        // Fetch remaining pages in parallel using Guzzle Pool
+        // Collections with >30 items need pagination, parallelize for performance
         while (! empty($pendingPages)) {
             $nextPendingPages = [];
 
-            foreach ($pendingPages as $collectionId => $pageData) {
-                try {
-                    $result = $this->query($query, [
-                        'collectionId' => $collectionId,
-                        'first' => $pageSize,
-                        'after' => $pageData['cursor'],
+            // Create request generator for pagination requests
+            $paginationRequests = function () use ($pendingPages, $query, $pageSize) {
+                foreach ($pendingPages as $collectionId => $pageData) {
+                    $payload = json_encode([
+                        'query' => $query,
+                        'variables' => [
+                            'collectionId' => $collectionId,
+                            'first' => $pageSize,
+                            'after' => $pageData['cursor'],
+                        ],
                     ]);
 
-                    $data = $result['data']['relationshipsCollection'] ?? [];
-                    $edgeCount = count($data['edges'] ?? []);
-                    $counts[$collectionId] += $edgeCount;
-
-                    if ($data['pageInfo']['hasNextPage'] ?? false) {
-                        $nextPendingPages[$collectionId] = [
-                            'cursor' => $data['pageInfo']['endCursor'],
-                            'count' => $counts[$collectionId],
-                        ];
-                    }
-                } catch (\Exception $e) {
-                    Log::error("Failed to fetch additional pages for collection {$collectionId}", [
-                        'error' => $e->getMessage(),
-                    ]);
+                    yield $collectionId => new Request(
+                        'POST',
+                        $this->graphqlUrl,
+                        [
+                            'Content-Type' => 'application/json',
+                            'apikey' => $this->apiKey,
+                            'Accept' => 'application/json',
+                        ],
+                        $payload
+                    );
                 }
-            }
+            };
 
+            // Execute pagination requests in parallel
+            $paginationPool = new Pool($this->client, $paginationRequests(), [
+                'concurrency' => 10,
+                'fulfilled' => function (Response $response, $collectionId) use (&$counts, &$nextPendingPages) {
+                    $body = json_decode($response->getBody()->getContents(), true);
+
+                    if (isset($body['data']['relationshipsCollection'])) {
+                        $data = $body['data']['relationshipsCollection'];
+                        $edgeCount = count($data['edges'] ?? []);
+                        $counts[$collectionId] += $edgeCount;
+
+                        // Track if we need to fetch more pages
+                        if ($data['pageInfo']['hasNextPage'] ?? false) {
+                            $nextPendingPages[$collectionId] = [
+                                'cursor' => $data['pageInfo']['endCursor'],
+                                'count' => $counts[$collectionId],
+                            ];
+                        }
+                    }
+                },
+                'rejected' => function ($reason, $collectionId) {
+                    Log::error("Failed to fetch additional pages for collection {$collectionId}", [
+                        'reason' => (string) $reason,
+                    ]);
+                },
+            ]);
+
+            $paginationPool->promise()->wait();
             $pendingPages = $nextPendingPages;
         }
 

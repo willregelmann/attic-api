@@ -273,6 +273,16 @@ class UserCollectionService
         string $name,
         ?string $parentCollectionId = null
     ): UserCollection {
+        // Check if a linked collection already exists for this DBoT collection
+        $existingCollection = UserCollection::where('user_id', $userId)
+            ->where('linked_dbot_collection_id', $dbotCollectionId)
+            ->first();
+
+        if ($existingCollection) {
+            // Return existing collection instead of creating duplicate
+            return $existingCollection;
+        }
+
         // Validate DBoT collection exists
         $dbotCollection = $this->dbotService->getCollection($dbotCollectionId);
 
@@ -311,9 +321,9 @@ class UserCollectionService
 
         return \DB::transaction(function () use ($userId, $entityIds, $parentCollectionId) {
             // 1. Query existing wishlists to find duplicates
+            // Note: Unique constraint is on (user_id, entity_id) only, not parent_collection_id
             $existingWishlists = Wishlist::where('user_id', $userId)
                 ->whereIn('entity_id', $entityIds)
-                ->where('parent_collection_id', $parentCollectionId)
                 ->pluck('entity_id')
                 ->toArray();
 

@@ -247,7 +247,7 @@ class UserItemMutations
     }
 
     /**
-     * Remove item from user's collection
+     * Remove item from user's collection by user_item_id
      */
     public function removeItemFromMyCollection($rootValue, array $args, GraphQLContext $context, ResolveInfo $resolveInfo)
     {
@@ -258,7 +258,7 @@ class UserItemMutations
         }
 
         $deleted = UserItem::where('user_id', $user->id)
-            ->where('entity_id', $args['entity_id'])
+            ->where('id', $args['user_item_id'])
             ->delete();
 
         if ($deleted === 0) {

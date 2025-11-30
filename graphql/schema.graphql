@@ -181,7 +181,10 @@ type UserItemWithEntity {
 
     # Entity fields (from Database of Things, nullable for custom items)
     id: ID
-    type: String
+    "Type of entity: 'item' or 'collection' (matches DBoT EntityType)"
+    type: String!
+    "Category describing what kind of item: 'custom', 'trading_card_games', etc."
+    category: String
     name: String!
     year: Int
     country: String
@@ -254,7 +257,10 @@ type WishlistWithEntity {
 
     # Entity fields (from Database of Things)
     id: ID!
+    "Type of entity: 'item' or 'collection' (matches DBoT EntityType)"
     type: String!
+    "Category describing what kind of item: 'trading_card_games', etc."
+    category: String
     name: String!
     year: Int
     country: String
@@ -276,7 +282,10 @@ type UserCollection {
     user_id: ID!
     parent_collection_id: ID
     name: String!
+    "Type of entity: always 'collection' for UserCollection (matches DBoT EntityType)"
     type: String!
+    "Category describing what kind of collection: 'custom' or 'linked'"
+    category: String!
     description: String
     custom_image: String @deprecated(reason: "Use images array instead")
     images: [Image!]

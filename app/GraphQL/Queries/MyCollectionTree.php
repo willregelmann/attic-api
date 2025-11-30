@@ -167,6 +167,7 @@ class MyCollectionTree
                         // Entity fields
                         'id' => $entity['id'],
                         'type' => $entity['type'],
+                        'category' => $entity['category'] ?? null,
                         'name' => $entity['name'],
                         'year' => $entity['year'] ?? null,
                         'country' => $entity['country'] ?? null,
@@ -192,6 +193,7 @@ class MyCollectionTree
                         // Entity fields
                         'id' => $entity['id'],
                         'type' => $entity['type'],
+                        'category' => $entity['category'] ?? null,
                         'name' => $entity['name'],
                         'year' => $entity['year'] ?? null,
                         'country' => $entity['country'] ?? null,
@@ -217,6 +219,7 @@ class MyCollectionTree
                         // Entity fields
                         'id' => $entity['id'],
                         'type' => $entity['type'],
+                        'category' => $entity['category'] ?? null,
                         'name' => $entity['name'],
                         'year' => $entity['year'] ?? null,
                         'country' => $entity['country'] ?? null,
@@ -250,7 +253,8 @@ class MyCollectionTree
 
                         // Entity fields (mostly null for custom items)
                         'id' => null,
-                        'type' => 'custom',
+                        'type' => 'item',  // Always 'item' (matches DBoT EntityType)
+                        'category' => 'custom',  // 'custom' indicates user-created item
                         'name' => $item->name,
                         'year' => null,
                         'country' => null,
@@ -284,6 +288,7 @@ class MyCollectionTree
                             // Entity fields
                             'id' => $entity['id'],
                             'type' => $entity['type'],
+                            'category' => $entity['category'] ?? null,
                             'name' => $entity['name'],
                             'year' => $entity['year'] ?? null,
                             'country' => $entity['country'] ?? null,
@@ -316,6 +321,7 @@ class MyCollectionTree
                         // Entity fields
                         'id' => $entity['id'],
                         'type' => $entity['type'],
+                        'category' => $entity['category'] ?? null,
                         'name' => $entity['name'],
                         'year' => $entity['year'] ?? null,
                         'country' => $entity['country'] ?? null,

@@ -70,9 +70,20 @@ class UserCollection extends Model
 
     /**
      * Computed accessor for type field
-     * Returns 'linked' if collection is linked to a DBoT collection, otherwise 'custom'
+     * Always returns 'collection' - UserCollections are always collections
+     * (matches DBoT EntityType: 'item' or 'collection')
      */
     public function getTypeAttribute(): string
+    {
+        return 'collection';
+    }
+
+    /**
+     * Computed accessor for category field
+     * Returns 'linked' if collection is linked to a DBoT collection, otherwise 'custom'
+     * Category describes what KIND of collection (custom, linked, trading_cards, etc.)
+     */
+    public function getCategoryAttribute(): string
     {
         return $this->linked_dbot_collection_id ? 'linked' : 'custom';
     }
