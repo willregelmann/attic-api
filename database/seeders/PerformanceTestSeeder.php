@@ -85,6 +85,9 @@ class PerformanceTestSeeder extends Seeder
         $this->command->info('  - Created: Nested Hierarchy (3 levels)');
 
         // 5. Mixed Collection (varied items)
+        // Note: Originally planned to include wishlisted items, but the wishlists table
+        // only supports entity_id (DBoT references) and has no 'name' field.
+        // Custom wishlist items cannot be created without real DBoT entity UUIDs.
         $mixedCollection = UserCollection::create([
             'user_id' => $user->id,
             'name' => 'Mixed Collection',
