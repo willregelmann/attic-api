@@ -301,6 +301,155 @@ class UserCollectionService
     }
 
     /**
+     * Calculate progress for multiple collections efficiently (no N+1)
+     *
+     * This method pre-fetches all required data in bulk queries, then calculates
+     * progress in memory. Much faster than calling calculateProgress per collection.
+     *
+     * @param  string  $userId  User ID
+     * @param  array  $collectionIds  Array of collection IDs to calculate progress for
+     * @param  DatabaseOfThingsService|null  $dbotService  DBoT service for linked collection counts
+     * @return array<string, array{owned_count: int, wishlist_count: int, total_count: int, percentage: float}>
+     */
+    public function calculateBulkProgress(string $userId, array $collectionIds, ?DbotDataCache $dbotCache = null): array
+    {
+        if (empty($collectionIds)) {
+            return [];
+        }
+
+        // 1. Pre-fetch ALL user collections (for building tree structure)
+        $allCollections = UserCollection::where('user_id', $userId)
+            ->get()
+            ->keyBy('id');
+
+        // 2. Build parent->children mapping for efficient tree traversal
+        $childrenMap = [];
+        foreach ($allCollections as $collection) {
+            $parentId = $collection->parent_collection_id ?? 'root';
+            if (!isset($childrenMap[$parentId])) {
+                $childrenMap[$parentId] = [];
+            }
+            $childrenMap[$parentId][] = $collection->id;
+        }
+
+        // 3. Pre-fetch item counts per collection (one query)
+        $itemCounts = UserItem::where('user_id', $userId)
+            ->selectRaw('parent_collection_id, COUNT(DISTINCT entity_id) as count')
+            ->groupBy('parent_collection_id')
+            ->pluck('count', 'parent_collection_id')
+            ->toArray();
+
+        // 4. Pre-fetch wishlist counts per collection (one query)
+        $wishlistCounts = Wishlist::where('user_id', $userId)
+            ->selectRaw('parent_collection_id, COUNT(DISTINCT entity_id) as count')
+            ->groupBy('parent_collection_id')
+            ->pluck('count', 'parent_collection_id')
+            ->toArray();
+
+        // 5. Get DBoT item counts for linked collections (from cache or fetch)
+        $linkedDbotIds = $allCollections
+            ->filter(fn ($c) => $c->linked_dbot_collection_id !== null)
+            ->pluck('linked_dbot_collection_id', 'id')
+            ->toArray();
+
+        $dbotCounts = [];
+        if (!empty($linkedDbotIds)) {
+            foreach ($linkedDbotIds as $collectionId => $dbotId) {
+                // Try cache first
+                $cachedCount = $dbotCache?->getCollectionItemCount($dbotId);
+                if ($cachedCount !== null) {
+                    $dbotCounts[$collectionId] = $cachedCount;
+                }
+                // If not cached, we'll need to fetch - but this should be rare
+                // since the frontend will typically call the dedicated progress endpoint
+            }
+        }
+
+        // 6. Calculate progress for each requested collection using pre-fetched data
+        $results = [];
+        foreach ($collectionIds as $collectionId) {
+            $results[$collectionId] = $this->calculateProgressFromPrefetched(
+                $collectionId,
+                $allCollections,
+                $childrenMap,
+                $itemCounts,
+                $wishlistCounts,
+                $dbotCounts
+            );
+        }
+
+        return $results;
+    }
+
+    /**
+     * Calculate progress for a single collection using pre-fetched data
+     */
+    protected function calculateProgressFromPrefetched(
+        string $collectionId,
+        \Illuminate\Support\Collection $allCollections,
+        array $childrenMap,
+        array $itemCounts,
+        array $wishlistCounts,
+        array $dbotCounts
+    ): array {
+        // Get all descendant collection IDs (including self)
+        $descendantIds = $this->getDescendantIdsFromMap($collectionId, $childrenMap);
+        $descendantIds[] = $collectionId;
+
+        // Sum owned counts across all descendants
+        $ownedCount = 0;
+        foreach ($descendantIds as $id) {
+            $ownedCount += $itemCounts[$id] ?? 0;
+        }
+
+        // Sum wishlist counts across all descendants
+        $wishlistCount = 0;
+        foreach ($descendantIds as $id) {
+            $wishlistCount += $wishlistCounts[$id] ?? 0;
+        }
+
+        // Calculate total count
+        $totalCount = 0;
+        foreach ($descendantIds as $id) {
+            $collection = $allCollections->get($id);
+            if ($collection && $collection->linked_dbot_collection_id) {
+                // Linked collection - use DBoT count
+                $totalCount += $dbotCounts[$id] ?? 0;
+            } else {
+                // Non-linked collection - total is owned + wishlisted
+                $totalCount += ($itemCounts[$id] ?? 0) + ($wishlistCounts[$id] ?? 0);
+            }
+        }
+
+        $percentage = $totalCount > 0
+            ? round(($ownedCount / $totalCount) * 100, 2)
+            : 0;
+
+        return [
+            'owned_count' => $ownedCount,
+            'wishlist_count' => $wishlistCount,
+            'total_count' => $totalCount,
+            'percentage' => $percentage,
+        ];
+    }
+
+    /**
+     * Get all descendant IDs from pre-built children map (no queries)
+     */
+    protected function getDescendantIdsFromMap(string $collectionId, array $childrenMap): array
+    {
+        $descendants = [];
+        $children = $childrenMap[$collectionId] ?? [];
+
+        foreach ($children as $childId) {
+            $descendants[] = $childId;
+            $descendants = array_merge($descendants, $this->getDescendantIdsFromMap($childId, $childrenMap));
+        }
+
+        return $descendants;
+    }
+
+    /**
      * Bulk add items to wishlist.
      *
      * @param  array  $entityIds  Array of entity IDs to add

@@ -1755,19 +1755,16 @@ class DatabaseOfThingsService
         $scope = $span->activate();
 
         try {
-            // Step 1: Fetch all linked DBoT collection entities in parallel
+            // Fetch all linked DBoT collection entities in parallel
+            // Note: Item counts are now fetched client-side via separate progress query
+            // to improve initial page load time
             $entities = $this->getEntitiesByIdsInParallel($linkedDbotCollectionIds);
 
-            // Step 2: Fetch item counts for all linked collections in parallel
-            // We use a lightweight query that only gets the count, not the actual items
-            $collectionItemCounts = $this->getCollectionItemCountsInParallel($linkedDbotCollectionIds);
-
             $span->setAttribute('entities.fetched', count($entities));
-            $span->setAttribute('counts.fetched', count($collectionItemCounts));
 
             return [
                 'entities' => $entities,
-                'collectionItemCounts' => $collectionItemCounts,
+                'collectionItemCounts' => [], // Counts fetched client-side now
             ];
 
         } finally {
@@ -1788,9 +1785,17 @@ class DatabaseOfThingsService
             return [];
         }
 
-        // Query to count relationships (items) for a collection
-        // We fetch all pages to get accurate counts
-        $query = '
+        $span = $this->tracer->spanBuilder('dbot.getCollectionItemCountsInParallel')
+            ->setSpanKind(SpanKind::KIND_CLIENT)
+            ->setAttribute('collection_ids.count', count($collectionIds))
+            ->startSpan();
+
+        $scope = $span->activate();
+
+        try {
+            // Query to count relationships (items) for a collection
+            // We fetch all pages to get accurate counts
+            $query = '
             query($collectionId: UUID!, $first: Int!, $after: Cursor) {
                 relationshipsCollection(
                     filter: {
@@ -1810,84 +1815,19 @@ class DatabaseOfThingsService
                     }
                 }
             }
-        ';
+            ';
 
-        $pageSize = 30;
-        $counts = [];
+            $pageSize = 30;
+            $counts = [];
 
-        // Create request generator for first page of each collection
-        $requests = function () use ($collectionIds, $query, $pageSize) {
-            foreach ($collectionIds as $collectionId) {
-                $payload = json_encode([
-                    'query' => $query,
-                    'variables' => [
-                        'collectionId' => $collectionId,
-                        'first' => $pageSize,
-                    ],
-                ]);
-
-                yield $collectionId => new Request(
-                    'POST',
-                    $this->graphqlUrl,
-                    [
-                        'Content-Type' => 'application/json',
-                        'apikey' => $this->apiKey,
-                        'Accept' => 'application/json',
-                    ],
-                    $payload
-                );
-            }
-        };
-
-        // Track collections that need more pages
-        $pendingPages = [];
-
-        // Execute first page requests in parallel
-        $pool = new Pool($this->client, $requests(), [
-            'concurrency' => 10,
-            'fulfilled' => function (Response $response, $collectionId) use (&$counts, &$pendingPages) {
-                $body = json_decode($response->getBody()->getContents(), true);
-
-                if (isset($body['data']['relationshipsCollection'])) {
-                    $data = $body['data']['relationshipsCollection'];
-                    $edgeCount = count($data['edges'] ?? []);
-                    $counts[$collectionId] = $edgeCount;
-
-                    // Track if we need to fetch more pages
-                    if ($data['pageInfo']['hasNextPage'] ?? false) {
-                        $pendingPages[$collectionId] = [
-                            'cursor' => $data['pageInfo']['endCursor'],
-                            'count' => $edgeCount,
-                        ];
-                    }
-                } else {
-                    $counts[$collectionId] = 0;
-                }
-            },
-            'rejected' => function ($reason, $collectionId) use (&$counts) {
-                Log::error("Failed to fetch item count for collection {$collectionId}", [
-                    'reason' => (string) $reason,
-                ]);
-                $counts[$collectionId] = 0;
-            },
-        ]);
-
-        $pool->promise()->wait();
-
-        // Fetch remaining pages in parallel using Guzzle Pool
-        // Collections with >30 items need pagination, parallelize for performance
-        while (! empty($pendingPages)) {
-            $nextPendingPages = [];
-
-            // Create request generator for pagination requests
-            $paginationRequests = function () use ($pendingPages, $query, $pageSize) {
-                foreach ($pendingPages as $collectionId => $pageData) {
+            // Create request generator for first page of each collection
+            $requests = function () use ($collectionIds, $query, $pageSize) {
+                foreach ($collectionIds as $collectionId) {
                     $payload = json_encode([
                         'query' => $query,
                         'variables' => [
                             'collectionId' => $collectionId,
                             'first' => $pageSize,
-                            'after' => $pageData['cursor'],
                         ],
                     ]);
 
@@ -1904,37 +1844,108 @@ class DatabaseOfThingsService
                 }
             };
 
-            // Execute pagination requests in parallel
-            $paginationPool = new Pool($this->client, $paginationRequests(), [
+            // Track collections that need more pages
+            $pendingPages = [];
+
+            // Execute first page requests in parallel
+            $pool = new Pool($this->client, $requests(), [
                 'concurrency' => 10,
-                'fulfilled' => function (Response $response, $collectionId) use (&$counts, &$nextPendingPages) {
+                'fulfilled' => function (Response $response, $collectionId) use (&$counts, &$pendingPages) {
                     $body = json_decode($response->getBody()->getContents(), true);
 
                     if (isset($body['data']['relationshipsCollection'])) {
                         $data = $body['data']['relationshipsCollection'];
                         $edgeCount = count($data['edges'] ?? []);
-                        $counts[$collectionId] += $edgeCount;
+                        $counts[$collectionId] = $edgeCount;
 
                         // Track if we need to fetch more pages
                         if ($data['pageInfo']['hasNextPage'] ?? false) {
-                            $nextPendingPages[$collectionId] = [
+                            $pendingPages[$collectionId] = [
                                 'cursor' => $data['pageInfo']['endCursor'],
-                                'count' => $counts[$collectionId],
+                                'count' => $edgeCount,
                             ];
                         }
+                    } else {
+                        $counts[$collectionId] = 0;
                     }
                 },
-                'rejected' => function ($reason, $collectionId) {
-                    Log::error("Failed to fetch additional pages for collection {$collectionId}", [
+                'rejected' => function ($reason, $collectionId) use (&$counts) {
+                    Log::error("Failed to fetch item count for collection {$collectionId}", [
                         'reason' => (string) $reason,
                     ]);
+                    $counts[$collectionId] = 0;
                 },
             ]);
 
-            $paginationPool->promise()->wait();
-            $pendingPages = $nextPendingPages;
-        }
+            $pool->promise()->wait();
 
-        return $counts;
+            // Fetch remaining pages in parallel using Guzzle Pool
+            // Collections with >30 items need pagination, parallelize for performance
+            while (! empty($pendingPages)) {
+                $nextPendingPages = [];
+
+                // Create request generator for pagination requests
+                $paginationRequests = function () use ($pendingPages, $query, $pageSize) {
+                    foreach ($pendingPages as $collectionId => $pageData) {
+                        $payload = json_encode([
+                            'query' => $query,
+                            'variables' => [
+                                'collectionId' => $collectionId,
+                                'first' => $pageSize,
+                                'after' => $pageData['cursor'],
+                            ],
+                        ]);
+
+                        yield $collectionId => new Request(
+                            'POST',
+                            $this->graphqlUrl,
+                            [
+                                'Content-Type' => 'application/json',
+                                'apikey' => $this->apiKey,
+                                'Accept' => 'application/json',
+                            ],
+                            $payload
+                        );
+                    }
+                };
+
+                // Execute pagination requests in parallel
+                $paginationPool = new Pool($this->client, $paginationRequests(), [
+                    'concurrency' => 10,
+                    'fulfilled' => function (Response $response, $collectionId) use (&$counts, &$nextPendingPages) {
+                        $body = json_decode($response->getBody()->getContents(), true);
+
+                        if (isset($body['data']['relationshipsCollection'])) {
+                            $data = $body['data']['relationshipsCollection'];
+                            $edgeCount = count($data['edges'] ?? []);
+                            $counts[$collectionId] += $edgeCount;
+
+                            // Track if we need to fetch more pages
+                            if ($data['pageInfo']['hasNextPage'] ?? false) {
+                                $nextPendingPages[$collectionId] = [
+                                    'cursor' => $data['pageInfo']['endCursor'],
+                                    'count' => $counts[$collectionId],
+                                ];
+                            }
+                        }
+                    },
+                    'rejected' => function ($reason, $collectionId) {
+                        Log::error("Failed to fetch additional pages for collection {$collectionId}", [
+                            'reason' => (string) $reason,
+                        ]);
+                    },
+                ]);
+
+                $paginationPool->promise()->wait();
+                $pendingPages = $nextPendingPages;
+            }
+
+            $span->setAttribute('counts.fetched', count($counts));
+
+            return $counts;
+        } finally {
+            $scope->detach();
+            $span->end();
+        }
     }
 }

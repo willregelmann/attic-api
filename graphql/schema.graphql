@@ -463,6 +463,20 @@ type Query {
     myCollectionTree(parent_id: ID): UserCollectionView!
         @guard
         @field(resolver: "App\\GraphQL\\Queries\\MyCollectionTree")
+
+    """
+    Fetch progress for multiple collections efficiently (bulk query, no N+1)
+    Returns progress data keyed by collection ID
+    """
+    myCollectionProgress(collection_ids: [ID!]!): [CollectionProgressResult!]!
+        @guard
+        @field(resolver: "App\\GraphQL\\Queries\\MyCollectionProgress")
+}
+
+"Progress result for a single collection"
+type CollectionProgressResult {
+    collection_id: ID!
+    progress: CollectionProgress!
 }
 
 type Mutation {
