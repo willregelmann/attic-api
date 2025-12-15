@@ -17,6 +17,9 @@ return Application::configure(basePath: dirname(__DIR__))
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             \App\Http\Middleware\AuthenticateWithApiToken::class,
         ]);
+        $middleware->api(append: [
+            \App\Http\Middleware\GraphQLCacheHeaders::class,
+        ]);
         $middleware->alias([
             'cors' => \Illuminate\Http\Middleware\HandleCors::class,
             'auth.api-token' => \App\Http\Middleware\AuthenticateWithApiToken::class,
