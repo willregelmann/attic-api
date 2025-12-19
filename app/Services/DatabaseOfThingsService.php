@@ -1812,15 +1812,18 @@ class DatabaseOfThingsService
 
         try {
             // Fetch all linked DBoT collection entities in parallel
-            // Note: Item counts are now fetched client-side via separate progress query
-            // to improve initial page load time
             $entities = $this->getEntitiesByIdsInParallel($linkedDbotCollectionIds);
 
+            // Also fetch item counts in parallel to avoid N+1 problem in calculateProgress
+            // Without this, each collection's progress field triggers sequential getCollectionItems calls
+            $collectionItemCounts = $this->getCollectionItemCountsInParallel($linkedDbotCollectionIds);
+
             $span->setAttribute('entities.fetched', count($entities));
+            $span->setAttribute('counts.fetched', count($collectionItemCounts));
 
             return [
                 'entities' => $entities,
-                'collectionItemCounts' => [], // Counts fetched client-side now
+                'collectionItemCounts' => $collectionItemCounts,
             ];
 
         } finally {
